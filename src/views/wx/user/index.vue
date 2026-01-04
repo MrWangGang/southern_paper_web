@@ -3,118 +3,102 @@
     <el-row :gutter="20">
       <el-col :span="24" :xs="24">
         <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
-          <el-form-item label="用户昵称" prop="nickName">
-            <el-input
-              v-model="queryParams.nickName"
-              placeholder="请输入用户昵称"
-              clearable
-              style="width: 240px"
-              @keyup.enter.native="handleQuery"
-            />
+          <el-form-item label="用户姓名" prop="name">
+            <el-input v-model="queryParams.name" placeholder="请输入姓名" clearable style="width: 240px" @keyup.enter.native="handleQuery" />
           </el-form-item>
           <el-form-item label="手机号码" prop="phone">
-            <el-input
-              v-model="queryParams.phone"
-              placeholder="请输入手机号码"
-              clearable
-              style="width: 240px"
-              @keyup.enter.native="handleQuery"
-            />
+            <el-input v-model="queryParams.phone" placeholder="请输入手机号" clearable style="width: 240px" @keyup.enter.native="handleQuery" />
           </el-form-item>
-
           <el-form-item>
             <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
             <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+            <el-button type="success" icon="el-icon-plus" size="mini" @click="handleAdd">新增</el-button>
           </el-form-item>
         </el-form>
 
         <el-table v-loading="loading" :data="userList">
-
-          <el-table-column label="用户/昵称" align="left" width="200">
+          <el-table-column label="用户" align="left" width="200">
             <template slot-scope="scope">
               <div style="display: flex; align-items: center;">
                 <el-avatar
                   :size="30"
-                  :src="scope.row.avatarUrl"
-                  style="margin-right: 10px; flex-shrink: 0;"
+                  :src="scope.row.faceImg"
+                  style="margin-right: 10px; flex-shrink: 0; background-color: rgba(0,0,0,0.05); color: #666;"
                 >
-                  {{ scope.row.nickName ? scope.row.nickName[0] : 'U' }}
+                  {{ scope.row.name ? scope.row.name[0] : 'U' }}
                 </el-avatar>
-                <span v-if="scope.row.nickName" :title="scope.row.nickName">{{ scope.row.nickName }}</span>
-                <span v-else style="color: #909399;">未设置</span>
+                <span>{{ scope.row.name }}</span>
               </div>
             </template>
           </el-table-column>
-
-          <el-table-column label="会员号" align="center">
+          <el-table-column label="手机" align="center" prop="phone" />
+          <el-table-column label="公司" align="center" prop="company" />
+          <el-table-column label="账号" align="center" prop="username" />
+          <el-table-column label="角色" align="center" prop="role">
             <template slot-scope="scope">
-              <span v-if="scope.row.userNum">{{ scope.row.userNum }}</span>
-              <span v-else style="color: #909399; font-style: italic;">未设置</span>
+              <el-tag size="small" type="info">{{ scope.row.role === 'customer' ? '客户' : scope.row.role }}</el-tag>
             </template>
           </el-table-column>
-
-          <el-table-column label="手机号码" align="center" width="120">
+          <el-table-column label="账号开启" align="center" width="100">
             <template slot-scope="scope">
-              <span v-if="scope.row.phone">{{ scope.row.phone }}</span>
-              <span v-else style="color: #909399; font-style: italic;">未设置</span>
+              <el-switch v-model="scope.row.isLogin" @change="handleStatusChange(scope.row)"></el-switch>
             </template>
           </el-table-column>
-
-          <el-table-column label="领养宠物" align="center">
+          <el-table-column label="创建时间" align="center" prop="createTime" width="160">
             <template slot-scope="scope">
-              <div style="display: flex; align-items: center; justify-content: center;">
-                <el-tooltip :content="scope.row.board" placement="top" :disabled="!scope.row.board">
-                  <el-image
-                    v-if="scope.row.boardUrl"
-                    :src="scope.row.boardUrl"
-                    style="width: 24px; height: 24px; border-radius: 50%; margin-right: 5px;"
-                    fit="cover"
-                  />
-                </el-tooltip>
-                <span v-if="scope.row.board">{{ scope.row.board }}</span>
-                <span v-else style="color: #909399; font-style: italic;">未设置</span>
-              </div>
+              <span>{{ parseTime(scope.row.createTime) }}</span>
             </template>
           </el-table-column>
-
-          <el-table-column label="会员信息" align="center">
+          <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
             <template slot-scope="scope">
-              <el-tag
-                v-if="scope.row.vipType"
-                size="small"
-                :type="scope.row.vipLevel > 1 ? 'warning' : 'info'"
-              >
-                Lv.{{ scope.row.vipLevel || 0 }} / {{ scope.row.vipType }}
-              </el-tag>
-              <span v-else style="color: #909399; font-style: italic;">未设置</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="积分/经验" align="center">
-            <template slot-scope="scope">
-              <div v-if="scope.row.vipScore !== null && scope.row.vipScore !== undefined || scope.row.vipExp !== null && scope.row.vipExp !== undefined">
-                <span style="display: block;">积分: {{ scope.row.vipScore || 0 }}</span>
-                <span style="display: block;">经验: {{ scope.row.vipExp || 0 }}</span>
-              </div>
-              <span v-else style="color: #909399; font-style: italic;">未设置</span>
-            </template>
-          </el-table-column>
-
-          <el-table-column label="注册时间" align="center" prop="createdAt" width="160">
-            <template slot-scope="scope">
-              <span v-if="scope.row.createdAt">{{ parseTime(scope.row.createdAt) }}</span>
-              <span v-else style="color: #909399; font-style: italic;">未设置</span>
+              <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)">修改</el-button>
             </template>
           </el-table-column>
         </el-table>
 
-        <pagination
-          v-show="total>0"
-          :total="total"
-          :page.sync="queryParams.pageNum"
-          :limit.sync="queryParams.pageSize"
-          @pagination="getList"
-        />
+        <pagination v-show="total>0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize" @pagination="getList" />
+
+        <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
+          <el-form ref="form" :model="form" :rules="rules" label-width="80px">
+            <el-form-item label="用户头像">
+              <el-upload
+                class="avatar-uploader"
+                action=""
+                :show-file-list="false"
+                :http-request="handleUpload"
+                :before-upload="beforeAvatarUpload"
+              >
+                <img v-if="imageUrl" :src="imageUrl" class="avatar">
+                <div v-else class="avatar-text-wrapper">
+                  <div class="avatar-text">{{ form.name ? form.name[0] : '?' }}</div>
+                  <i class="el-icon-plus edit-icon"></i>
+                </div>
+              </el-upload>
+            </el-form-item>
+            <el-form-item label="姓名" prop="name">
+              <el-input v-model="form.name" placeholder="请输入姓名" />
+            </el-form-item>
+            <el-form-item label="手机" prop="phone">
+              <el-input v-model="form.phone" placeholder="请输入手机号" />
+            </el-form-item>
+            <el-form-item label="公司" prop="company">
+              <el-input v-model="form.company" placeholder="请输入公司" />
+            </el-form-item>
+            <el-form-item label="角色">
+              <el-input v-model="form.roleName" disabled />
+            </el-form-item>
+            <el-form-item label="账号" prop="username">
+              <el-input v-model="form.username" placeholder="请输入账号" />
+            </el-form-item>
+            <el-form-item label="密码" prop="password">
+              <el-input v-model="form.password" type="password" placeholder="请输入密码" show-password />
+            </el-form-item>
+          </el-form>
+          <div slot="footer" class="dialog-footer">
+            <el-button type="primary" @click="submitForm">确 定</el-button>
+            <el-button @click="cancel">取 消</el-button>
+          </div>
+        </el-dialog>
       </el-col>
     </el-row>
   </div>
@@ -122,7 +106,8 @@
 
 <script>
 import Pagination from '@/components/Pagination';
-import { listUser } from '@/api/wx/user';
+import { listUser, addUser, updateUser, changeUserStatus } from '@/api/wx/user';
+import { uploadToCloud } from '@/api/wx/common';
 
 export default {
   name: "WxUserList",
@@ -132,70 +117,151 @@ export default {
       loading: true,
       showSearch: true,
       total: 0,
-      userList: null,
-
-      queryParams: {
-        pageNum: 1,
-        pageSize: 10,
-        nickName: undefined, // 对应后端 CloudBase 的 nickName
-        phone: undefined,    // 对应后端 CloudBase 的 phone
-      },
+      userList: [],
+      title: "",
+      open: false,
+      imageUrl: "",
+      queryParams: { pageNum: 1, pageSize: 10, name: undefined, phone: undefined },
+      form: {},
+      rules: {
+        name: [{ required: true, message: "姓名不能为空", trigger: "blur" }],
+        phone: [
+          { required: true, message: "手机号不能为空", trigger: "blur" },
+          { pattern: /^1[3-9]\d{9}$/, message: "请输入正确的手机号格式", trigger: "blur" }
+        ],
+        company: [{ required: true, message: "公司名称不能为空", trigger: "blur" }],
+        username: [{ required: true, message: "账号不能为空", trigger: "blur" }],
+        password: [{ required: true, message: "密码不能为空", trigger: "blur" }]
+      }
     };
   },
-  created() {
-    this.getList();
-  },
+  created() { this.getList(); },
   methods: {
-    /** 嵌入式 parseTime 函数 (解决依赖问题) */
-    parseTime(time, pattern = '{y}-{m}-{d} {h}:{i}:{s}') {
-      if (arguments.length === 0 || !time) {
-        return null;
-      }
-      const date = new Date(time);
-      const formatObj = {
-        y: date.getFullYear(),
-        m: date.getMonth() + 1,
-        d: date.getDate(),
-        h: date.getHours(),
-        i: date.getMinutes(),
-        s: date.getSeconds(),
-      };
-      const time_str = pattern.replace(/\{([ymdhisa])\}/g, (match, key) => {
-        const value = formatObj[key];
-        if (['m', 'd', 'h', 'i', 's'].includes(key)) {
-          return String(value).padStart(2, '0');
-        }
-        return String(value);
-      });
-      return time_str;
-    },
-
-    /** 查询用户列表 */
     getList() {
       this.loading = true;
       listUser(this.queryParams).then(response => {
-          this.userList = response.data.records;
-          this.total = response.data.total;
-          this.loading = false;
-        }
-      ).catch(() => {
+        this.userList = response.data.records;
+        this.total = response.data.total;
         this.loading = false;
+      }).catch(() => { this.loading = false; });
+    },
+    handleUpload(param) {
+      const formData = new FormData();
+      formData.append('file', param.file);
+      uploadToCloud(formData).then(res => {
+        if (res.code === 200) {
+          this.form.faceImg = res.data.fileID;
+          this.imageUrl = URL.createObjectURL(param.file);
+          this.$modal.msgSuccess("上传成功");
+        } else {
+          this.$modal.msgError(res.msg || "上传失败");
+        }
+      }).catch(() => {
+        this.$modal.msgError("文件服务器连接失败");
       });
     },
-
-    /** 搜索按钮操作 */
-    handleQuery() {
-      this.queryParams.pageNum = 1;
-      this.getList();
+    beforeAvatarUpload(file) {
+      const isJPGorPNG = file.type === 'image/jpeg' || file.type === 'image/png';
+      const isLt2M = file.size / 1024 / 1024 < 2;
+      if (!isJPGorPNG) this.$modal.msgError('上传头像图片只能是 JPG 或 PNG 格式!');
+      if (!isLt2M) this.$modal.msgError('上传头像图片大小不能超过 2MB!');
+      return isJPGorPNG && isLt2M;
     },
-
-    /** 重置按钮操作 */
-    resetQuery() {
-      if (this.$refs.queryForm) {
-        this.$refs.queryForm.resetFields();
-      }
-      this.handleQuery();
+    submitForm() {
+      this.$refs["form"].validate(valid => {
+        if (valid) {
+          if (this.form._id != null) {
+            updateUser(this.form._id, this.form).then(res => {
+              this.$modal.msgSuccess("修改成功");
+              this.open = false;
+              this.getList();
+            });
+          } else {
+            addUser(this.form).then(res => {
+              this.$modal.msgSuccess("新增成功");
+              this.open = false;
+              this.getList();
+            });
+          }
+        }
+      });
     },
+    handleUpdate(row) {
+      this.reset();
+      this.form = { ...row, roleName: '客户' }; // 赋值角色展示名
+      this.imageUrl = row.faceImg;
+      this.open = true;
+      this.title = "修改用户";
+    },
+    handleStatusChange(row) {
+      let text = row.isLogin ? "启用" : "禁用";
+      this.$confirm('确认要' + text + '"' + row.name + '"用户吗？', "警告").then(() => {
+        return changeUserStatus(row._id, row.isLogin);
+      }).then(() => {
+        this.$modal.msgSuccess(text + "成功");
+        this.getList();
+      }).catch(() => {
+        row.isLogin = !row.isLogin;
+      });
+    },
+    handleQuery() { this.queryParams.pageNum = 1; this.getList(); },
+    resetQuery() { this.$refs.queryForm.resetFields(); this.handleQuery(); },
+    handleAdd() {
+      this.reset();
+      this.form.roleName = '客户'; // 新增时也默认显示
+      this.open = true;
+      this.title = "添加用户";
+    },
+    cancel() { this.open = false; this.reset(); },
+    reset() {
+      this.imageUrl = "";
+      this.form = {
+        _id: undefined, name: undefined, phone: undefined, company: undefined,
+        username: undefined, password: undefined, faceImg: undefined, roleName: '客户'
+      };
+      if (this.$refs.form) this.$refs.form.resetFields();
+    },
+    parseTime(time) {
+      if (!time) return "";
+      const date = new Date(time);
+      return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
   }
 };
 </script>
+
+<style scoped>
+.avatar-uploader {
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  width: 100px;
+  height: 100px;
+}
+.avatar-uploader:hover { border-color: #409EFF; }
+.avatar-text-wrapper {
+  width: 100px;
+  height: 100px;
+  background-color: transparent;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  border: 1px solid #eee;
+}
+.avatar-text {
+  color: #606266;
+  font-size: 40px;
+  font-weight: bold;
+}
+.edit-icon {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  color: #909399;
+  font-size: 16px;
+}
+.avatar { width: 100px; height: 100px; display: block; object-fit: cover; }
+</style>
