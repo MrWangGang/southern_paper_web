@@ -13,6 +13,7 @@
         <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
         <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
         <el-button type="success" icon="el-icon-plus" size="mini" @click="handleAdd">新增产品</el-button>
+        <el-button type="warning" icon="el-icon-download" size="mini" @click="handleExport">导出 Excel</el-button>
 
         <el-upload style="display: inline-block; margin-left: 10px;" action="" :before-upload="handleExcelImport" :show-file-list="false" accept=".xlsx, .xls">
           <el-button type="info" icon="el-icon-upload2" size="mini">导入 Excel</el-button>
@@ -69,7 +70,6 @@
             :before-upload="beforeUpload"
           >
             <img v-if="imageUrl || form.productImg" :src="imageUrl || form.productImg" class="avatar">
-
             <div v-else class="avatar-text-wrapper name-avatar" :style="{'background-color': getBgColor(form.name), 'width': '100px', 'height': '100px', 'margin': '0'}">
               <div class="avatar-text">{{ form.name ? form.name[0] : 'P' }}</div>
               <i class="el-icon-plus edit-icon"></i>
@@ -95,8 +95,7 @@
               <el-input-number v-model="form.unit_weight" :step="0.01" controls-position="right" style="width: 100%" />
             </el-form-item>
           </el-col>
-        </el-row>
-      </el-form>
+        </el-row> </el-form>
       <div slot="footer" class="dialog-footer">
         <el-button type="primary" @click="submitForm">确 定</el-button>
         <el-button @click="cancel">取 消</el-button>
@@ -107,7 +106,7 @@
 
 <script>
 import * as XLSX from 'xlsx';
-import { listProduct, addProduct, updateProduct, delProduct, getProductCategories, importProductJson } from "@/api/wx/product";
+import { listProduct, addProduct, updateProduct, delProduct, getProductCategories, importProductJson, exportProduct } from "@/api/wx/product";
 import { uploadToCloud } from '@/api/wx/common';
 import Pagination from '@/components/Pagination';
 
@@ -153,6 +152,36 @@ export default {
       if (!name) return '#909399';
       const colors = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#7232dd'];
       return colors[name.charCodeAt(0) % colors.length];
+    },
+    handleExport() {
+      this.$confirm('是否根据当前查询条件导出数据？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.loading = true;
+        return exportProduct(this.queryParams);
+      }).then(res => {
+        const list = res.data;
+        if (!list || list.length === 0) {
+          this.$modal.msgWarning("查无数据，无法导出");
+          return;
+        }
+        const exportData = list.map(item => ({
+          '分类': item.category,
+          '产品名称': item.name,
+          '克重(g)': item.base_weight,
+          '系数': item.unit_weight,
+          '创建时间': this.parseTime(item.createTime)
+        }));
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "产品清单");
+        XLSX.writeFile(wb, `产品导出_${new Date().getTime()}.xlsx`);
+        this.$modal.msgSuccess("导出成功");
+      }).finally(() => {
+        this.loading = false;
+      }).catch(() => {});
     },
     handleExcelImport(file) {
       const reader = new FileReader();

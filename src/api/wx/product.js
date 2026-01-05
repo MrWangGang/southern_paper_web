@@ -17,12 +17,21 @@ export function getProductCategories() {
   })
 }
 
-// 🌟 修改：接收 JSON 数组的导入接口
+// 接收 JSON 数组的导入接口
 export function importProductJson(data) {
   return request({
     url: '/product/importJson',
     method: 'post',
-    data: data // 这里的 data 是解析好的 Array
+    data: data
+  })
+}
+
+// 🌟 新增：按条件导出接口
+export function exportProduct(query) {
+  return request({
+    url: '/product/export',
+    method: 'get',
+    params: query // 携带当前的搜索条件
   })
 }
 
