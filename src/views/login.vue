@@ -38,22 +38,7 @@
             <svg-icon slot="prefix" icon-class="password" class="el-input__icon input-icon" />
           </el-input>
         </el-form-item>
-        <el-form-item prop="code" v-if="captchaOnOff">
-          <div style="display: flex;">
-            <el-input
-              v-model="loginForm.code"
-              auto-complete="off"
-              placeholder="验证码"
-              style="width: 63%"
-              @keyup.enter.native="handleLogin"
-            >
-              <svg-icon slot="prefix" icon-class="validCode" class="el-input__icon input-icon" />
-            </el-input>
-            <div class="login-code">
-              <img :src="codeUrl" @click="getCode" class="login-code-img"/>
-            </div>
-          </div>
-        </el-form-item>
+
         <el-checkbox v-model="loginForm.rememberMe" style="margin:0px 0px 25px 0px;color: #ffffff">记住密码</el-checkbox>
         <el-form-item style="width:100%;">
           <el-button
@@ -72,27 +57,17 @@
           </div>
         </el-form-item>
       </el-form>
-      <!-- <h2>登录</h2>
-      <div class="inputBox"><input type="text" placeholder="用户名" /></div>
-      <div class="inputBox"><input type="password" placeholder="密码" /></div>
-      <div class="inputBox">
-        <input type="submit" value="登入" id="btn" />
-      </div> -->
-      <!-- <div class="group">
-        <a href="#">忘记密码</a>
-        <a href="#">注册</a>
-      </div> -->
     </div>
   </section>
 </template>
 
 <script>
-import { getCodeImg } from "@/api/login";
+// 【修改点】删除了 getCodeImg 的导入
 import Cookies from "js-cookie";
 import { encrypt, decrypt } from '@/utils/jsencrypt'
 import Parallax from 'parallax-js';
 
-const sysTitle = process.env.VUE_APP_TITLE || '嘉仪' // 网页标题
+const sysTitle = process.env.VUE_APP_TITLE || '嘉仪'
 
 export default {
   name: "Login",
@@ -113,13 +88,10 @@ export default {
         ],
         password: [
           { required: true, trigger: "blur", message: "请输入您的密码" }
-        ],
-        code: [{ required: true, trigger: "change", message: "请输入验证码" }]
+        ]
       },
       loading: false,
-      // 验证码开关
-      captchaOnOff: true,
-      // 注册开关
+      captchaOnOff: false,
       register: false,
       redirect: undefined
     };
@@ -133,7 +105,7 @@ export default {
     }
   },
   created() {
-    this.getCode();
+    // 【修改点】删除了 this.getCode() 的调用
     this.getCookie();
   },
 
@@ -143,15 +115,7 @@ export default {
   },
 
   methods: {
-    getCode() {
-      getCodeImg().then(res => {
-        this.captchaOnOff = res.captchaOnOff === undefined ? true : res.captchaOnOff;
-        if (this.captchaOnOff) {
-          this.codeUrl = "data:image/gif;base64," + res.img;
-          this.loginForm.uuid = res.uuid;
-        }
-      });
-    },
+    // 【修改点】删除了 getCode() 方法定义
     getCookie() {
       const username = Cookies.get("username");
       const password = Cookies.get("password");
@@ -179,9 +143,7 @@ export default {
             this.$router.push({ path: this.redirect || "/" }).catch(()=>{});
           }).catch(() => {
             this.loading = false;
-            if (this.captchaOnOff) {
-              this.getCode();
-            }
+            // 【修改点】删除了登录失败时刷新验证码的判断逻辑
           });
         }
       });
@@ -349,5 +311,4 @@ section {
 .login-code-img {
   height: 3rem;
 }
-
 </style>
