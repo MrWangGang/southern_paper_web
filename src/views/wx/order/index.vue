@@ -20,7 +20,7 @@
         :header-cell-style="{ background: '#f8f9fb', color: '#333', fontWeight: 'bold' }"
         style="width: 100%"
       >
-        <el-table-column type="expand" width="60">
+        <el-table-column type="expand">
           <template slot-scope="props">
             <div class="expand-container">
               <div class="inner-title">商品明细</div>
@@ -31,7 +31,9 @@
                 class="inner-table"
                 style="width: 100%"
               >
-                <el-table-column label="物流状态" min-width="100" align="center">
+                <el-table-column label="商品名称" min-width="180" align="center" prop="name" fixed="left" />
+
+                <el-table-column label="物流状态"  min-width="100" align="center">
                   <template slot-scope="item">
                     <el-tag
                       v-if="item.row.deliveryInfo && item.row.deliveryInfo.deliveryStatus"
@@ -45,7 +47,6 @@
                     <span v-else>--</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="商品名称" min-width="180" align="center" prop="name" fixed="left" />
 
                 <el-table-column label="克重(g)" min-width="100" align="center">
                   <template slot-scope="item">{{ item.row.base_weight > 0 ? item.row.base_weight : '--' }}</template>
@@ -63,7 +64,7 @@
                   </template>
                 </el-table-column>
 
-                <el-table-column label="加工规格" min-width="130" align="center">
+                <el-table-column label="加工规格" min-width="100" align="center">
                   <template slot-scope="item">
                     <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
                       <el-tag size="mini" effect="dark" :type="getModeTagType(item.row)">{{ getModeLabel(item.row) }}</el-tag>
@@ -80,7 +81,7 @@
                   <template slot-scope="item">{{ (item.row.h && item.row.h !== '--') ? item.row.h: '--' }}</template>
                 </el-table-column>
 
-                <el-table-column label="数量" min-width="120" align="center">
+                <el-table-column label="数量" min-width="100" align="center">
                   <template slot-scope="item">
                     <div v-if="item.row.qty" style="display: flex; align-items: center; justify-content: center; gap: 4px;">
                       <span style="font-weight: bold; color: #FF0000;">{{ item.row.qty }}</span>
@@ -115,14 +116,14 @@
                   </template>
                 </el-table-column>
 
-                <el-table-column label="手机号" min-width="120" align="center" >
+                <el-table-column label="手机号" min-width="100" align="center" >
                   <template slot-scope="item">
                     {{ item.row.isSelfPick ? '--' : (item.row.deliveryInfo.receiverPhone || '--') }}
                   </template>
                 </el-table-column>
 
 
-                <el-table-column label="收货地址" min-width="250" align="center" fixed="right" show-overflow-tooltip>
+                <el-table-column label="收货地址" min-width="150" align="center" fixed="right" show-overflow-tooltip>
                   <template slot-scope="item">
                     <span v-if="item.row.isSelfPick" style="color: #999;">--</span>
                     <span v-else>{{ (item.row.deliveryInfo && item.row.deliveryInfo.address) || '--' }}</span>
