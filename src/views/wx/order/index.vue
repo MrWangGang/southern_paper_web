@@ -110,7 +110,7 @@
                 <el-table-column label="操作" width="160" align="center" fixed="left">
                   <template slot-scope="item">
                     <template v-if="props.row.orderStatus === '草稿' || props.row.orderStatus === '已关闭'|| props.row.orderStatus === '已完成'" >
-                      <span style="color: #67C23A"><i class="el-icon-circle-check"></i>操作禁止</span>
+                      <span style="color: #67C23A"><i class="el-icon-circle-close"></i>禁止操作</span>
                     </template>
 
                     <template v-else-if="item.row.deliveryInfo">
@@ -140,7 +140,7 @@
                           >撤回</el-button>
                         </template>
 
-                        <span v-else style="color: #67C23A"><i class="el-icon-circle-check"></i>禁止操作</span>
+                        <span v-else style="color: #67C23A"><i class="el-icon-circle-close"></i>禁止操作</span>
                       </div>
                     </template>
                     <span v-else style="color: #999">--</span>
@@ -182,8 +182,6 @@
                   </template>
                 </el-table-column>
 
-                <el-table-column label="商品名称" min-width="180" align="center" prop="name" />
-
                 <el-table-column label="物流状态"  min-width="100" align="center">
                   <template slot-scope="item">
                     <el-tag
@@ -198,6 +196,8 @@
                     <span v-else>--</span>
                   </template>
                 </el-table-column>
+                <el-table-column label="商品名称" min-width="180" align="center" prop="name" show-overflow-tooltip/>
+
 
                 <el-table-column label="克重(g)" min-width="100" align="center">
                   <template slot-scope="item">{{ item.row.base_weight > 0 ? item.row.base_weight : '--' }}</template>
@@ -245,6 +245,11 @@
                 <el-table-column label="重量" min-width="100" align="center">
                   <template slot-scope="item">
                     <span v-if="item.row.weight > 0" style="color: #67C23A; font-weight: bold;">{{ item.row.weight }}吨</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="单价(￥/吨)" min-width="100" align="center">
+                  <template slot-scope="item">
+                    <span v-if="item.row.weight > 0" style="color: #67C23A; font-weight: bold;">{{ item.row.unit_price }}</span>
                   </template>
                 </el-table-column>
 
@@ -300,6 +305,7 @@
         <el-table-column label="发货仓库" align="center">
           <template slot-scope="scope">
             <el-tag
+              v-if="scope.row.warehouse"
               size="small"
               effect="dark"
               :color="getWarehouseTagColor(scope.row.warehouse)"
@@ -307,6 +313,8 @@
             >
               {{ scope.row.warehouse }}
             </el-tag>
+
+            <span v-else style="color: #999;">--</span>
           </template>
         </el-table-column>
         <el-table-column label="状态" align="center">
