@@ -6,8 +6,54 @@
         <el-form-item label="订单编号">
           <el-input v-model="queryParams.orderNo" placeholder="输入订单号" clearable @keyup.enter.native="handleQuery" />
         </el-form-item>
+
+        <el-form-item label="客户名称">
+          <el-input v-model="queryParams.name" placeholder="客户姓名" clearable @keyup.enter.native="handleQuery" />
+        </el-form-item>
+
+        <el-form-item label="下单账号">
+          <el-input v-model="queryParams.username" placeholder="下单账号" clearable @keyup.enter.native="handleQuery" />
+        </el-form-item>
+
+        <el-form-item label="客户公司">
+          <el-input v-model="queryParams.company" placeholder="公司名称" clearable @keyup.enter.native="handleQuery" />
+        </el-form-item>
+
+        <el-form-item label="发货仓库">
+          <el-select v-model="queryParams.warehouse" placeholder="选择仓库" clearable style="width: 140px;">
+            <el-option label="湛江仓" value="湛江仓" />
+            <el-option label="直调仓" value="直调仓" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="订单状态">
+          <el-select v-model="queryParams.orderStatus" placeholder="支持多选" multiple collapse-tags clearable style="width: 200px;">
+            <el-option label="待发货" value="待发货" />
+            <el-option label="部分发货" value="部分发货" />
+            <el-option label="全部发货" value="全部发货" />
+            <el-option label="部分收货" value="部分收货" />
+            <el-option label="已完成" value="已完成" />
+            <el-option label="已关闭" value="已关闭" />
+            <el-option label="草稿" value="草稿" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="下单时间">
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="yyyy-MM-dd"
+            @change="handleDateChange"
+            style="width: 240px;"
+          />
+        </el-form-item>
+
         <el-form-item>
           <el-button type="primary" icon="el-icon-search" @click="handleQuery">查询</el-button>
+          <el-button icon="el-icon-refresh" @click="resetQuery">重置</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -25,14 +71,28 @@
             <div class="expand-container">
               <div style="display: flex; align-items: center; margin-bottom: 12px;">
                 <div class="inner-title" style="margin-bottom: 0;">商品明细</div>
+
                 <el-button
                   type="primary"
                   size="mini"
                   icon="el-icon-truck"
                   style="margin-left: 15px;"
-                  :disabled="!selectedItems[props.row._id] || selectedItems[props.row._id].length === 0 || props.row.orderStatus === '已关闭' || props.row.orderStatus === '草稿'"
+                  :disabled="!isBatchShippable(props.row._id) || props.row.orderStatus === '已关闭' || props.row.orderStatus === '草稿'"
                   @click="handleBatchShip(props.row)"
-                >批量发货</el-button>
+                >批量发货 / 修改</el-button>
+
+                <el-button
+                  type="success"
+                  size="mini"
+                  icon="el-icon-refresh-left"
+                  style="margin-left: 10px;"
+                  :disabled="!isAllCancelable(props.row._id) || props.row.orderStatus === '已完成' || props.row.orderStatus === '已关闭' || props.row.orderStatus === '草稿'"
+                  @click="handleBatchCancelShip(props.row)"
+                >批量撤销</el-button>
+
+                <span v-if="hasIllegalSelection(props.row._id)" style="margin-left: 10px; color: #F56C6C; font-size: 12px;">
+                  <i class="el-icon-warning"></i> 勾选项包含“已收货”或非法状态，无法批量操作
+                </span>
               </div>
 
               <el-table
@@ -47,30 +107,41 @@
               >
                 <el-table-column type="selection" width="45" align="center" :selectable="(row) => canSelectItem(row, props.row.orderStatus)" />
 
-                <el-table-column label="操作" width="90" align="center" fixed="left">
+                <el-table-column label="操作" width="160" align="center" fixed="left">
                   <template slot-scope="item">
-                    <template v-if="props.row.orderStatus === '草稿' || props.row.orderStatus === '已关闭'">
-                      <el-button type="primary" size="mini" disabled>发货</el-button>
+                    <template v-if="props.row.orderStatus === '草稿' || props.row.orderStatus === '已关闭'|| props.row.orderStatus === '已完成'" >
+                      <span style="color: #67C23A"><i class="el-icon-circle-check"></i>操作禁止</span>
                     </template>
 
                     <template v-else-if="item.row.deliveryInfo">
-                      <el-button
-                        v-if="item.row.deliveryInfo.deliveryStatus === '待发货'"
-                        type="primary"
-                        size="mini"
-                        :disabled="isRowSelected(props.row._id, item.row)"
-                        @click="handleOpenShip(props.row, item.row)"
-                      >发货</el-button>
+                      <div style="display:flex; justify-content:center; gap:5px">
+                        <template v-if="item.row.deliveryInfo.deliveryStatus === '待发货'">
+                          <el-button
+                            type="primary"
+                            size="mini"
+                            :disabled="isRowSelected(props.row._id, item.row)"
+                            @click="handleOpenShip(props.row, item.row)"
+                          >发货</el-button>
+                          <el-button size="mini" disabled>撤回</el-button>
+                        </template>
 
-                      <el-button
-                        v-else-if="item.row.deliveryInfo.deliveryStatus === '已发货'"
-                        type="warning"
-                        size="mini"
-                        :disabled="isRowSelected(props.row._id, item.row)"
-                        @click="handleOpenShip(props.row, item.row)"
-                      >修改</el-button>
+                        <template v-else-if="item.row.deliveryInfo.deliveryStatus === '已发货'">
+                          <el-button
+                            type="warning"
+                            size="mini"
+                            :disabled="isRowSelected(props.row._id, item.row)"
+                            @click="handleOpenShip(props.row, item.row)"
+                          >修改</el-button>
+                          <el-button
+                            type="success"
+                            size="mini"
+                            :disabled="isRowSelected(props.row._id, item.row)"
+                            @click="handleCancelShip(props.row, item.row)"
+                          >撤回</el-button>
+                        </template>
 
-                      <span v-else style="color: #67C23A"><i class="el-icon-circle-check"></i> 完成</span>
+                        <span v-else style="color: #67C23A"><i class="el-icon-circle-check"></i>禁止操作</span>
+                      </div>
                     </template>
                     <span v-else style="color: #999">--</span>
                   </template>
@@ -78,15 +149,15 @@
 
                 <el-table-column label="发货单据" width="80" align="center">
                   <template slot-scope="item">
-                    <div v-if="item.row.deliveryInfo && item.row.deliveryInfo.deliveryFileImag">
-                      <div v-if="item.row.deliveryInfo.deliveryFileImag.toLowerCase().endsWith('.pdf')" @click="viewFile(item.row.deliveryInfo.deliveryFileImag)" class="pdf-icon-btn">
+                    <div v-if="item.row.deliveryInfo && item.row.deliveryInfo.deliveryFileImg">
+                      <div v-if="item.row.deliveryInfo.deliveryFileImg.toLowerCase().endsWith('.pdf')" @click="viewFile(item.row.deliveryInfo.deliveryFileImg)" class="pdf-icon-btn">
                         PDF
                       </div>
                       <el-image
                         v-else
                         class="table-thumb"
-                        :src="item.row.deliveryInfo.deliveryFileImag"
-                        :preview-src-list="[item.row.deliveryInfo.deliveryFileImag]"
+                        :src="item.row.deliveryInfo.deliveryFileImg"
+                        :preview-src-list="[item.row.deliveryInfo.deliveryFileImg]"
                         fit="cover"
                       >
                         <div slot="error" class="image-slot"><i class="el-icon-picture-outline"></i></div>
@@ -214,12 +285,44 @@
         </el-table-column>
 
         <el-table-column label="订单编号" prop="orderNo" align="center" />
+        <el-table-column label="下单账号" align="center">
+          <template slot-scope="scope"><span>{{ scope.row.username }}</span></template>
+        </el-table-column>
+        <el-table-column label="客户名称" align="center">
+          <template slot-scope="scope"><span>{{ scope.row.name }}</span></template>
+        </el-table-column>
+        <el-table-column label="客户公司" align="center">
+          <template slot-scope="scope"><span>{{ scope.row.company }}</span></template>
+        </el-table-column>
         <el-table-column label="合计金额" align="center">
           <template slot-scope="scope"><span class="price-text">￥{{ scope.row.allTotal }}</span></template>
+        </el-table-column>
+        <el-table-column label="发货仓库" align="center">
+          <template slot-scope="scope">
+            <el-tag
+              size="small"
+              effect="dark"
+              :color="getWarehouseTagColor(scope.row.warehouse)"
+              style="border: none;"
+            >
+              {{ scope.row.warehouse }}
+            </el-tag>
+          </template>
         </el-table-column>
         <el-table-column label="状态" align="center">
           <template slot-scope="scope">
             <el-tag :type="getStatusTag(scope.row.orderStatus)" size="small">{{ scope.row.orderStatus }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column
+          label="备注"
+          prop="remark"
+          align="center"
+          min-width="150"
+          show-overflow-tooltip
+        >
+          <template slot-scope="scope">
+            <span>{{ scope.row.remark || '--' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" fixed="right" align="center" width="180">
@@ -301,7 +404,7 @@
       </div>
       <div slot="footer">
         <el-button @click="shipVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!shipForm.deliveryFileImag" @click="submitShipAction">确认发货</el-button>
+        <el-button type="primary" :disabled="!shipForm.deliveryFileImg" @click="submitShipAction">确认发货</el-button>
       </div>
     </el-dialog>
 
@@ -309,7 +412,7 @@
 </template>
 
 <script>
-import { getOrderList, updateOrderStatus, delOrder, shipItem } from "@/api/wx/order";
+import { getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem } from "@/api/wx/order";
 import { uploadToCloud } from "@/api/wx/common";
 import QRCode from "qrcode";
 
@@ -319,7 +422,19 @@ export default {
       loading: true,
       orderList: [],
       total: 0,
-      queryParams: { page: 1, pageSize: 10, orderNo: '' },
+      queryParams: {
+        page: 1,
+        pageSize: 10,
+        orderNo: '',
+        name: '',
+        username: '',
+        company: '',
+        warehouse: '',
+        orderStatus: ['待发货', '部分发货', '全部发货', '部分收货', '已完成', '已关闭'],
+        startTime: '',
+        endTime: ''
+      },
+      dateRange: [],
       shipVisible: false,
       uploading: false,
       shipPreviewUrl: '',
@@ -331,7 +446,7 @@ export default {
         orderId: '',
         deliveryId: '',
         deliveryIds: [],
-        deliveryFileImag: '',
+        deliveryFileImg: '',
         deliveryFileQrImg: ''
       }
     };
@@ -340,6 +455,35 @@ export default {
     this.getList();
   },
   methods: {
+    handleDateChange(val) {
+      if (val) {
+        this.queryParams.startTime = val[0];
+        this.queryParams.endTime = val[1];
+      } else {
+        this.queryParams.startTime = '';
+        this.queryParams.endTime = '';
+      }
+    },
+    resetQuery() {
+      this.dateRange = [];
+      this.queryParams = {
+        page: 1,
+        pageSize: 10,
+        orderNo: '',
+        name: '',
+        username: '',
+        company: '',
+        warehouse: '',
+        orderStatus: [],
+        startTime: '',
+        endTime: ''
+      };
+      this.handleQuery();
+    },
+    getWarehouseTagColor(warehouseName) {
+      const map = { '湛江仓': '#13c2c2', '直调仓': '#67C23A' };
+      return map[warehouseName] || '#909399';
+    },
     viewFile(url) {
       if (!url) return;
       window.open(url, '_blank');
@@ -350,7 +494,7 @@ export default {
       return colors[s] || '#409EFF';
     },
     getDeliveryStatusColor(status) {
-      const colorMap = { '待发货': '#E6A23C', '已发货': '#409EFF', '已收货': '#67C23A', '全部发货': '#67C23A', '部分发货': '#409EFF', '部分收货': '#b37feb' };
+      const colorMap = { '待发货': '#E6A23C', '已发货': '#409EFF', '已收货': '#67C23A' };
       return colorMap[status] || '#909399';
     },
     getModeLabel(item) {
@@ -401,23 +545,15 @@ export default {
       }).catch(() => {});
     },
     handleQuery() { this.queryParams.page = 1; this.getList(); },
-
-    handleSizeChange(val) {
-      this.queryParams.pageSize = val;
-      this.getList();
-    },
-    handleCurrentChange(val) {
-      this.queryParams.page = val;
-      this.getList();
-    },
-
+    handleSizeChange(val) { this.queryParams.pageSize = val; this.getList(); },
+    handleCurrentChange(val) { this.queryParams.page = val; this.getList(); },
     getStatusTag(s) {
-      const map = { '待发货': 'warning', '已完成': 'success', '已关闭': 'danger', '全部发货': 'success', '部分发货': 'primary', '部分收货': 'primary', '草稿': 'info' };
+      const map = { '待发货': 'warning', '部分发货': 'primary', '全部发货': 'success', '部分收货': 'primary', '已完成': 'success', '已关闭': 'danger', '草稿': 'info' };
       return map[s] || 'info';
     },
 
     canSelectItem(row, mainStatus) {
-      if (mainStatus === '已关闭' || mainStatus === '草稿') return false;
+      if (['已关闭', '草稿', '已完成'].includes(mainStatus)) return false;
       return row.deliveryInfo && (row.deliveryInfo.deliveryStatus === '待发货' || row.deliveryInfo.deliveryStatus === '已发货');
     },
 
@@ -430,14 +566,76 @@ export default {
       return selected.some(item => item.deliveryInfo.deliveryId === row.deliveryInfo.deliveryId);
     },
 
+    /**
+     * 批量发货/修改逻辑：
+     * 允许 待发货、已发货 项。
+     * 但如果勾选项里包含 已收货 或 缺失状态，则禁用。
+     */
+    isBatchShippable(orderId) {
+      const selected = this.selectedItems[orderId] || [];
+      if (selected.length === 0) return false;
+      // 检查是否所有选中项都处于可以“上传凭证”的状态（待发货 或 已发货）
+      return selected.every(item =>
+        item.deliveryInfo && ['待发货', '已发货'].includes(item.deliveryInfo.deliveryStatus)
+      );
+    },
+
+    /**
+     * 批量撤销逻辑：
+     * 必须全部都是 已发货 状态才有撤销意义。
+     */
+    isAllCancelable(orderId) {
+      const selected = this.selectedItems[orderId] || [];
+      if (selected.length === 0) return false;
+      return selected.every(item => item.deliveryInfo && item.deliveryInfo.deliveryStatus === '已发货');
+    },
+
+    /**
+     * 校验是否有非法选中项：
+     * 如果用户勾选了“已收货”的项，虽然 isBatchShippable 会返回 false，但我们给个明确红字提示。
+     */
+    hasIllegalSelection(orderId) {
+      const selected = this.selectedItems[orderId] || [];
+      if (selected.length === 0) return false;
+      return selected.some(item =>
+        !item.deliveryInfo || !['待发货', '已发货'].includes(item.deliveryInfo.deliveryStatus)
+      );
+    },
+
+    handleCancelShip(order, item) {
+      this.$confirm(`确定要撤销商品 [${item.name}] 的发货凭证吗？状态将回退至待发货。`, "提示", {
+        type: "warning"
+      }).then(() => {
+        cancelShipItem({ orderId: order._id, deliveryId: item.deliveryInfo.deliveryId }).then(() => {
+          this.$message.success("已撤回");
+          this.getList();
+        });
+      }).catch(() => {});
+    },
+
+    handleBatchCancelShip(order) {
+      const selections = this.selectedItems[order._id] || [];
+      const cancelableIds = selections.map(i => i.deliveryInfo.deliveryId);
+
+      this.$confirm(`确定要批量撤销已勾选的 ${cancelableIds.length} 项发货记录吗？`, "批量操作", {
+        type: "warning"
+      }).then(() => {
+        cancelShipItem({ orderId: order._id, deliveryIds: cancelableIds }).then(() => {
+          this.$message.success("批量撤销成功");
+          this.$set(this.selectedItems, order._id, []);
+          this.getList();
+        });
+      }).catch(() => {});
+    },
+
     handleBatchShip(order) {
       if (order.orderStatus === '已关闭' || order.orderStatus === '草稿') return;
       const selections = this.selectedItems[order._id] || [];
-      if (selections.length === 0) return;
-      const dIds = selections.map(i => i.deliveryInfo.deliveryId);
+      const shippableIds = selections.map(i => i.deliveryInfo.deliveryId);
+
       this.isBatch = true;
       this.currentOrderId = order._id;
-      this.shipForm = { orderId: order._id, deliveryIds: dIds, deliveryId: '', deliveryFileImag: '', deliveryFileQrImg: '' };
+      this.shipForm = { orderId: order._id, deliveryIds: shippableIds, deliveryId: '', deliveryFileImg: '', deliveryFileQrImg: '' };
       this.shipPreviewUrl = ''; this.isPdfFile = false; this.shipVisible = true;
     },
 
@@ -447,7 +645,7 @@ export default {
       if (!dId) { this.$message.error("该明细项缺失 deliveryId"); return; }
       this.isBatch = false;
       this.currentOrderId = order._id;
-      this.shipForm = { orderId: order._id, deliveryId: dId, deliveryIds: [], deliveryFileImag: '', deliveryFileQrImg: '' };
+      this.shipForm = { orderId: order._id, deliveryId: dId, deliveryIds: [], deliveryFileImg: '', deliveryFileQrImg: '' };
       this.shipPreviewUrl = ''; this.isPdfFile = false; this.shipVisible = true;
     },
 
@@ -459,7 +657,7 @@ export default {
         const formData = new FormData();
         formData.append('file', file);
         const resImg = await uploadToCloud(formData);
-        this.shipForm.deliveryFileImag = resImg.data.fileID;
+        this.shipForm.deliveryFileImg = resImg.data.fileID;
         this.isPdfFile = isPdf;
         this.shipPreviewUrl = isPdf ? 'pdf' : URL.createObjectURL(file);
         await new Promise(r => setTimeout(r, 800));
@@ -480,7 +678,7 @@ export default {
 
     submitShipAction() {
       if (!this.shipForm.deliveryFileQrImg) { this.$message.warning("请等待识别码生成"); return; }
-      const payload = { orderId: this.shipForm.orderId, deliveryFileImag: this.shipForm.deliveryFileImag, deliveryFileQrImg: this.shipForm.deliveryFileQrImg };
+      const payload = { orderId: this.shipForm.orderId, deliveryFileImg: this.shipForm.deliveryFileImg, deliveryFileQrImg: this.shipForm.deliveryFileQrImg };
       if (this.isBatch) { payload.deliveryIds = this.shipForm.deliveryIds; } else { payload.deliveryId = this.shipForm.deliveryId; }
       shipItem(payload).then(() => {
         this.$message.success(this.isBatch ? "批量发货成功" : "发货成功");
@@ -506,4 +704,12 @@ export default {
 .pdf-icon-preview { width: 100%; height: 180px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 48px; color: #ff4d4f; font-weight: bold; border-radius: 8px; }
 .table-thumb { width: 40px; height: 40px; border-radius: 4px; border: 1px solid #eee; cursor: pointer; display: block; margin: 0 auto; }
 ::v-deep .inner-table .el-table__row td { height: 50px !important; }
+
+/* 强化自定义禁用样式 */
+::v-deep .el-button--success.is-disabled,
+::v-deep .el-button--success.is-disabled:hover {
+  background-color: #f5f7fa !important;
+  border-color: #e4e7ed !important;
+  color: #c0c4cc !important;
+}
 </style>

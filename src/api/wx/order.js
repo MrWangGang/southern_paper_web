@@ -14,7 +14,14 @@ export function updateOrderStatus(id, status) {
 export function delOrder(id) {
   return request({ url: '/order/delete/' + id, method: 'delete' })
 }
-
+// 撤销/取消发货
+export function cancelShipItem(data) {
+  return request({
+    url: '/order/cancelShip', // 请根据后端实际路由调整
+    method: 'post',
+    data: data
+  })
+}
 // 🌟 新增：单个商品发货接口
 export function shipItem(data) {
   return request({
