@@ -625,14 +625,10 @@ export default {
       }).then(() => {
         this.loading = true;
 
-        // 1. 处理日期和原始参数
         const fullParams = this.addDateRange({...this.queryParams}, this.dateRange);
 
-        // 2. 【关键】使用解构赋值彻底剔除所有分页相关的字段
-        // 这样可以确保 URL 中不会出现 page, pageNum, pageSize 等参数
         const { page, pageNum, pageSize, ...cleanParams } = fullParams;
 
-        // 3. 【使用你定义好的路由】调用 api 中的 exportOrder
         return exportOrder(cleanParams);
 
       }).then(response => {
@@ -694,7 +690,6 @@ export default {
         this.$message.warning("请从下方列表中选择一个现有的发货单");
         return;
       }
-      // 🌟 核心改动：点击下一步时不再请求数据库，直接切换视图
       this.groupVisible = false;
       this.shipPreviewUrl = '';
       this.isPdfFile = false;
