@@ -54,6 +54,7 @@
         <el-form-item>
           <el-button type="primary" icon="el-icon-search" @click="handleQuery">查询</el-button>
           <el-button icon="el-icon-refresh" @click="resetQuery">重置</el-button>
+          <el-button type="warning" icon="el-icon-download" @click="handleExport">导出 Excel</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -291,7 +292,9 @@
               </el-dropdown-menu>
             </el-dropdown>
             <span v-else style="color: #999; font-size: 12px; margin-right: 10px;">不允许操作</span>
+<!--
             <el-button type="text" size="small" style="color: #F56C6C; margin-left: 10px;" icon="el-icon-delete" @click="handleDelete(scope.row)">删除数据</el-button>
+-->
           </template>
         </el-table-column>
       </el-table>
@@ -426,10 +429,12 @@
 </template>
 
 <script>
-import { getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups } from "@/api/wx/order";
+import { getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups,exportOrder } from "@/api/wx/order";
 import { uploadToCloud } from "@/api/wx/common";
 import QRCode from "qrcode";
-import dayjs from 'dayjs'; // 必须引入
+import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
+import FileSaver from 'file-saver';
 export default {
   data() {
     return {
@@ -608,6 +613,54 @@ export default {
       this.currentOrderId = order._id;
       this.shipForm = { orderId: order._id, deliveryId: dId, deliveryIds: [], shipNo: '', deliveryFileImg: '', deliveryFileQrImg: '' };
       this.openGroupDialog(order._id);
+    },
+    /** 导出订单功能 - 全量导出 */
+    /** 导出订单功能 - 彻底去除分页参数 */
+    /** 导出订单功能 */
+    handleExport() {
+      this.$confirm('是否确认导出当前搜索条件下的所有订单明细?', "导出确认", {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning"
+      }).then(() => {
+        this.loading = true;
+
+        // 1. 处理日期和原始参数
+        const fullParams = this.addDateRange({...this.queryParams}, this.dateRange);
+
+        // 2. 【关键】使用解构赋值彻底剔除所有分页相关的字段
+        // 这样可以确保 URL 中不会出现 page, pageNum, pageSize 等参数
+        const { page, pageNum, pageSize, ...cleanParams } = fullParams;
+
+        // 3. 【使用你定义好的路由】调用 api 中的 exportOrder
+        return exportOrder(cleanParams);
+
+      }).then(response => {
+        const list = response.data;
+        console.log(list)
+        if (!list || list.length === 0) {
+          this.$modal.msgWarning("没有找到可导出的数据");
+          this.loading = false;
+          return;
+        }
+
+        // 4. 执行导出 Excel 逻辑
+        const ws = XLSX.utils.json_to_sheet(list);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "订单明细");
+
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        FileSaver.saveAs(
+          new Blob([wbout], { type: 'application/octet-stream' }),
+          `订单导出_${new Date().getTime()}.xlsx`
+        );
+
+        this.$modal.msgSuccess("导出成功");
+        this.loading = false;
+      }).catch((err) => {
+        console.error("导出异常:", err);
+        this.loading = false;
+      });
     },
     openGroupDialog(orderId) {
       this.groupVisible = true;

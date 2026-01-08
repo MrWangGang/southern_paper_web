@@ -47,3 +47,12 @@ export function getShipGroups(orderId) {
     method: 'get'
   })
 }
+
+// 导出订单（全量导出，不分页）
+export function exportOrder(query) {
+  return request({
+    url: '/order/export',
+    method: 'get',
+    params: query
+  })
+}

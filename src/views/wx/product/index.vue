@@ -36,12 +36,12 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="名称" align="left" prop="name" :show-overflow-tooltip="true" />
       <el-table-column label="分类" align="center" prop="category">
         <template slot-scope="scope">
           <el-tag size="small" effect="plain">{{ scope.row.category }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="名称" align="left" prop="name" :show-overflow-tooltip="true" />
       <el-table-column label="克重(g)" align="center" prop="base_weight" />
       <el-table-column label="系数" align="center" prop="unit_weight" />
       <el-table-column label="创建时间" align="center" prop="createTime">
