@@ -30,3 +30,20 @@ export function shipItem(data) {
     data: data
   })
 }
+
+// 🌟 新增：生成发货流水号/二维码编号接口
+export function createShipOrder(data) {
+  return request({
+    url: '/order/createShipOrder',
+    method: 'post',
+    data: data
+  })
+}
+
+export function getShipGroups(orderId) {
+  return request({
+    // 确保这里的路径与 Controller 对应，且 orderId 是作为路径参数拼接的
+    url: '/order/getShipGroups/' + orderId,
+    method: 'get'
+  })
+}
