@@ -1,6 +1,6 @@
 <template>
   <div class="app-container dashboard-page">
-    <h2 class="page-title">📊 嘉宜纸业实时运营大数据看板</h2>
+    <h2 class="page-title">📊 实时运营大数据看板</h2>
 
     <el-row :gutter="20" class="metric-row">
       <el-col :span="6" v-for="(item, index) in metrics" :key="index">
