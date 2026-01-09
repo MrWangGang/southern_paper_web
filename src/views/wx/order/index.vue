@@ -282,8 +282,10 @@
         <el-table-column label="备注" prop="remark" align="center" min-width="150" show-overflow-tooltip>
           <template slot-scope="scope"><span>{{ scope.row.remark || '--' }}</span></template>
         </el-table-column>
-        <el-table-column label="发货操作" fixed="right" align="center" width="180">
+        <el-table-column label="操作" fixed="right" align="center" width="220">
           <template slot-scope="scope">
+            <el-button type="text" size="small" icon="el-icon-printer" @click="handlePrint(scope.row)">打印</el-button>
+
             <el-dropdown v-if="['待发货', '已关闭'].includes(scope.row.orderStatus)" @command="(status) => handleUpdateStatus(scope.row, status)" trigger="click">
               <el-button type="text" size="small">变更状态<i class="el-icon-arrow-down el-icon--right"></i></el-button>
               <el-dropdown-menu slot="dropdown">
@@ -291,10 +293,7 @@
                 <el-dropdown-item v-else-if="scope.row.orderStatus === '已关闭'" command="待发货" style="color: #67C23A; font-weight: bold;"><i class="el-icon-refresh-left"></i> 开启订单</el-dropdown-item>
               </el-dropdown-menu>
             </el-dropdown>
-            <span v-else style="color: #999; font-size: 12px; margin-right: 10px;">不允许操作</span>
-<!--
-            <el-button type="text" size="small" style="color: #F56C6C; margin-left: 10px;" icon="el-icon-delete" @click="handleDelete(scope.row)">删除数据</el-button>
--->
+            <span v-else style="color: #999; font-size: 12px; margin-right: 10px;">&ensp;不可作废</span>
           </template>
         </el-table-column>
       </el-table>
@@ -303,6 +302,78 @@
         <el-pagination @size-change="handleSizeChange" @current-change="handleCurrentChange" :current-page="queryParams.page" :page-sizes="[10, 20, 50, 100]" :page-size="queryParams.pageSize" layout="total, sizes, prev, pager, next, jumper" :total="total" />
       </div>
     </el-card>
+
+    <el-dialog title="打印订单预览" :visible.sync="printVisible" width="1050px" append-to-body>
+      <div id="printArea">
+        <div v-for="(order, index) in printData" :key="index" class="print-page-wrapper">
+          <div class="print-header-container">
+            <h1 class="print-main-title">销 售 订 单 发 货 明 细 表</h1>
+            <div class="print-top-info-grid">
+              <div class="info-cell"><strong>订单编号：</strong>{{ order.orderNo }}</div>
+              <div class="info-cell"><strong>合计金额：</strong><span class="price-val">￥{{ order.allTotal }}</span></div>
+              <div class="info-cell"><strong>发货仓库：</strong>{{ order.warehouse || '--' }}</div>
+              <div class="info-cell"><strong>下单时间：</strong>{{ dayjs(order.createTime).format('YYYY-MM-DD HH:mm') }}</div>
+              <div class="info-cell"><strong>下单账号：</strong>{{ order.username }}</div>
+              <div class="info-cell"><strong>客户姓名：</strong>{{ order.name }}</div>
+              <div class="info-cell"><strong>客户公司：</strong>{{ order.company }}</div>
+              <div class="info-cell"><strong>订单状态：</strong>{{ order.orderStatus }}</div>
+            </div>
+          </div>
+
+          <div class="print-section-header">商品发货明细 (共 {{ order.orderItems ? order.orderItems.length : 0 }} 项)</div>
+
+          <div v-for="(item, idx) in order.orderItems" :key="'item'+idx" class="print-item-card">
+            <div class="card-title-row">
+              <span class="item-no">#{{ idx + 1 }}</span>
+              <span class="item-name">{{ item.name }}</span>
+              <span class="item-status">[{{ (item.deliveryInfo && item.deliveryInfo.deliveryStatus) || '待发货' }}]</span>
+            </div>
+
+            <div class="card-main-body">
+              <div class="body-column col-30">
+                <div class="field-row"><span class="f-label">克重：</span><span class="f-value">{{ item.base_weight }}g</span></div>
+                <div class="field-row"><span class="f-label">系数：</span><span class="f-value">{{ item.unit_weight || '--' }}</span></div>
+                <div class="field-row"><span class="f-label">加工服务：</span><span class="f-value">{{ item.service }}</span></div>
+                <div class="field-row"><span class="f-label">加工规格：</span><span class="f-value">{{ item.w }} * {{ item.h }}</span></div>
+                <div class="field-row"><span class="f-label">单价：</span><span class="f-value">{{ item.unit_price }} 元</span></div>
+                <div class="field-row"><span class="f-label">下单数量：</span><span class="f-value highlight-red">{{ item.qty }} {{ getUnit(item) }}</span></div>
+                <div class="field-row"><span class="f-label">订单重量：</span><span class="f-value">{{ item.weight || '--' }}吨</span></div>
+                <div class="field-row"><span class="f-label">明细小计：</span><span class="f-value highlight-red">￥{{ item.total }}</span></div>
+              </div>
+
+              <div class="body-column col-45">
+                <div class="field-row"><span class="f-label">配送方式：</span><span class="f-value">{{ item.isSelfPick ? '仓库自提' : '送货上门' }}</span></div>
+                <div class="field-row"><span class="f-label">收货人员：</span><span class="f-value">{{ item.isSelfPick ? '--' : (item.deliveryInfo ? item.deliveryInfo.receiverName : '--') }}</span></div>
+                <div class="field-row"><span class="f-label">联系电话：</span><span class="f-value">{{ item.isSelfPick ? '--' : (item.deliveryInfo ? item.deliveryInfo.receiverPhone : '--') }}</span></div>
+                <div class="field-row address-row">
+                  <span class="f-label">收货地址：</span>
+                  <span class="f-value">{{ item.isSelfPick ? '--' : (item.deliveryInfo ? item.deliveryInfo.address : '--') }}</span>
+                </div>
+                <div class="field-row" style="margin-top: 8px;"><span class="f-label">发货时间：</span><span class="f-value">{{ (item.deliveryInfo && item.deliveryInfo.shipTime) ? dayjs(item.deliveryInfo.shipTime).format('YYYY-MM-DD HH:mm') : '--' }}</span></div>
+              </div>
+
+              <div class="body-column col-25 media-center">
+                <div class="qr-box">
+                  <div class="qr-label">识别码</div>
+                  <div class="img-wrapper">
+                    <img v-if="item.deliveryInfo && item.deliveryInfo.deliveryFileQrImg" :src="item.deliveryInfo.deliveryFileQrImg">
+                    <span v-else>无</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="print-remark-area">
+            <strong>订单总备注：</strong>{{ order.remark || '无备注' }}
+          </div>
+        </div>
+      </div>
+      <div slot="footer">
+        <el-button @click="printVisible = false">取消预览</el-button>
+        <el-button type="primary" icon="el-icon-printer" @click="doPrint">确认打印</el-button>
+      </div>
+    </el-dialog>
 
     <el-dialog title="发货单配置" :visible.sync="groupVisible" width="1300px" append-to-body custom-class="ship-group-dialog">
       <div style="padding: 10px 20px;" v-loading="loadingGroups">
@@ -429,12 +500,13 @@
 </template>
 
 <script>
-import { getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups,exportOrder } from "@/api/wx/order";
+import { getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups, exportOrder } from "@/api/wx/order";
 import { uploadToCloud } from "@/api/wx/common";
 import QRCode from "qrcode";
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import FileSaver from 'file-saver';
+
 export default {
   data() {
     return {
@@ -460,13 +532,15 @@ export default {
       groupType: 'new',
       existingGroups: [],
       targetShipNo: '',
-      expandedShipNos: [], // 新增：用于存储展开的行ID
+      expandedShipNos: [],
       groupCurrentPage: 1,
       groupPageSize: 4,
       shipForm: {
         orderId: '', deliveryId: '', deliveryIds: [], shipNo: '',
         deliveryFileImg: '', deliveryFileQrImg: ''
-      }
+      },
+      printVisible: false,
+      printData: []
     };
   },
   computed: {
@@ -528,11 +602,6 @@ export default {
         updateOrderStatus(row._id, status).then(() => { this.$message.success("操作成功"); this.getList(); });
       }).catch(() => {});
     },
-    handleDelete(row) {
-      this.$confirm(`是否确认彻底删除订单 "${row.orderNo}"？此操作不可恢复！`, "警告", { confirmButtonText: "确定", cancelButtonText: "取消", type: "error" }).then(() => {
-        delOrder(row._id).then(() => { this.$message.success("删除成功"); this.getList(); });
-      }).catch(() => {});
-    },
     handleQuery() { this.queryParams.page = 1; this.getList(); },
     handleSizeChange(val) { this.queryParams.pageSize = val; this.getList(); },
     handleCurrentChange(val) { this.queryParams.page = val; this.getList(); },
@@ -569,31 +638,15 @@ export default {
         cancelShipItem({ orderId: order._id, deliveryId: item.deliveryInfo.deliveryId }).then(() => { this.$message.success("已撤回"); this.getList(); });
       }).catch(() => {});
     },
-    /**
-     * 🌟 批量撤销
-     */
     handleBatchCancelShip(order) {
       const selections = this.selectedItems[order._id] || [];
       if (selections.length === 0) return;
-
-      // 从勾选的项中提取 deliveryId
       const cancelableIds = selections.map(i => i.deliveryInfo.deliveryId);
-
-      // 这里可以增加一层校验：看看选中的项里是不是都有 shipNo
-      const hasShipNo = selections.every(i => i.deliveryInfo && i.deliveryInfo.shipNo);
-
-      this.$confirm(`确定要撤销已勾选的 ${cancelableIds.length} 项发货记录吗？`, "批量撤销确认", {
-        type: "warning"
-      }).then(() => {
-        // 调用接口
-        cancelShipItem({
-          orderId: order._id,
-          deliveryIds: cancelableIds
-        }).then(() => {
+      this.$confirm(`确定要撤销已勾选的 ${cancelableIds.length} 项发货记录吗？`, "批量撤销确认", { type: "warning" }).then(() => {
+        cancelShipItem({ orderId: order._id, deliveryIds: cancelableIds }).then(() => {
           this.$message.success("批量撤销成功");
-          // 清空当前订单的勾选状态
           this.$set(this.selectedItems, order._id, []);
-          this.getList(); // 刷新数据
+          this.getList();
         });
       }).catch(() => {});
     },
@@ -614,88 +667,42 @@ export default {
       this.shipForm = { orderId: order._id, deliveryId: dId, deliveryIds: [], shipNo: '', deliveryFileImg: '', deliveryFileQrImg: '' };
       this.openGroupDialog(order._id);
     },
-    /** 导出订单功能 - 全量导出 */
-    /** 导出订单功能 - 彻底去除分页参数 */
-    /** 导出订单功能 */
     handleExport() {
-      this.$confirm('是否确认导出当前搜索条件下的所有订单明细?', "导出确认", {
-        confirmButtonText: "确定",
-        cancelButtonText: "取消",
-        type: "warning"
-      }).then(() => {
+      this.$confirm('是否确认导出当前搜索条件下的所有订单明细?', "导出确认", { confirmButtonText: "确定", cancelButtonText: "取消", type: "warning" }).then(() => {
         this.loading = true;
-
-        const fullParams = this.addDateRange({...this.queryParams}, this.dateRange);
-
-        const { page, pageNum, pageSize, ...cleanParams } = fullParams;
-
+        const { page, pageNum, pageSize, ...cleanParams } = this.queryParams;
         return exportOrder(cleanParams);
-
       }).then(response => {
         const list = response.data;
-        console.log(list)
-        if (!list || list.length === 0) {
-          this.$modal.msgWarning("没有找到可导出的数据");
-          this.loading = false;
-          return;
-        }
-
-        // 4. 执行导出 Excel 逻辑
+        if (!list || list.length === 0) { this.$modal.msgWarning("没有找到数据"); this.loading = false; return; }
         const ws = XLSX.utils.json_to_sheet(list);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "订单明细");
-
         const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        FileSaver.saveAs(
-          new Blob([wbout], { type: 'application/octet-stream' }),
-          `订单导出_${new Date().getTime()}.xlsx`
-        );
-
-        this.$modal.msgSuccess("导出成功");
+        FileSaver.saveAs(new Blob([wbout], { type: 'application/octet-stream' }), `订单导出_${new Date().getTime()}.xlsx`);
         this.loading = false;
-      }).catch((err) => {
-        console.error("导出异常:", err);
-        this.loading = false;
-      });
+      }).catch(() => { this.loading = false; });
     },
     openGroupDialog(orderId) {
       this.groupVisible = true;
       this.loadingGroups = true;
       this.groupType = 'new';
       this.targetShipNo = '';
-      this.expandedShipNos = []; // 重置展开
+      this.expandedShipNos = [];
       this.existingGroups = [];
-      this.groupCurrentPage = 1;
-
-      getShipGroups(orderId).then(res => {
-        this.existingGroups = res.data || [];
-      }).catch(() => {
-        this.$message.error("加载发货单列表失败");
-      }).finally(() => {
-        this.loadingGroups = false;
-      });
+      getShipGroups(orderId).then(res => { this.existingGroups = res.data || []; }).finally(() => { this.loadingGroups = false; });
     },
-
     toggleExpand(shipNo) {
       const index = this.expandedShipNos.indexOf(shipNo);
-      if (index > -1) {
-        this.expandedShipNos.splice(index, 1);
-      } else {
-        this.expandedShipNos.push(shipNo);
-      }
+      index > -1 ? this.expandedShipNos.splice(index, 1) : this.expandedShipNos.push(shipNo);
     },
-
     confirmGrouping() {
-      if (this.groupType === 'join' && !this.targetShipNo) {
-        this.$message.warning("请从下方列表中选择一个现有的发货单");
-        return;
-      }
+      if (this.groupType === 'join' && !this.targetShipNo) { this.$message.warning("请选择一个现有的发货单"); return; }
       this.groupVisible = false;
       this.shipPreviewUrl = '';
       this.isPdfFile = false;
       this.shipVisible = true;
     },
-
     async handleShipFileUpload(param) {
       this.uploading = true;
       try {
@@ -703,61 +710,106 @@ export default {
         const isPdf = file.type === 'application/pdf';
         const formData = new FormData();
         formData.append('file', file);
-
-        // 1. 先上传凭证图片
         const resImg = await uploadToCloud(formData);
         this.shipForm.deliveryFileImg = resImg.data.fileID;
         this.isPdfFile = isPdf;
         this.shipPreviewUrl = isPdf ? 'pdf' : URL.createObjectURL(file);
-
-        // 🌟 2. 核心适配：此处向后端请求预分配单号（后端现在仅计算不入库）
-        const payload = {
-          orderId: this.currentOrderId,
-          shipNo: this.groupType === 'join' ? this.targetShipNo : null
-        };
+        const payload = { orderId: this.currentOrderId, shipNo: this.groupType === 'join' ? this.targetShipNo : null };
         const resShipOrder = await createShipOrder(payload);
         this.shipForm.shipNo = resShipOrder.data.shipNo;
-
-        // 3. 生成二维码并上传
         const qrBase64 = await QRCode.toDataURL(String(this.shipForm.shipNo), { width: 500, margin: 1 });
         const qrBlob = await (await fetch(qrBase64)).blob();
         const qrFormData = new FormData();
         qrFormData.append('file', qrBlob, 'qr.jpg');
         const resQr = await uploadToCloud(qrFormData);
         this.shipForm.deliveryFileQrImg = resQr.data.fileID;
-
-        this.$message.success("发货资料处理完成");
-      } catch (e) {
-        console.error(e);
-        this.$message.error("上传处理失败");
-      } finally {
-        this.uploading = false;
-      }
+      } catch (e) { this.$message.error("上传失败"); } finally { this.uploading = false; }
     },
-
     submitShipAction() {
-      if (!this.shipForm.deliveryFileQrImg) {
-        this.$message.warning("正在生成发货识别码，请稍后...");
-        return;
-      }
-      // 🌟 最终提交，后端会在此处统一处理解绑、合并逻辑
+      if (!this.shipForm.deliveryFileQrImg) { this.$message.warning("二维码生成中..."); return; }
       const payload = {
-        orderId: this.currentOrderId,
-        shipNo: this.shipForm.shipNo,
-        deliveryFileImg: this.shipForm.deliveryFileImg,
-        deliveryFileQrImg: this.shipForm.deliveryFileQrImg,
+        orderId: this.currentOrderId, shipNo: this.shipForm.shipNo,
+        deliveryFileImg: this.shipForm.deliveryFileImg, deliveryFileQrImg: this.shipForm.deliveryFileQrImg,
         deliveryIds: this.isBatch ? this.shipForm.deliveryIds : [this.shipForm.deliveryId]
       };
       shipItem(payload).then(() => {
-        this.$message.success(this.isBatch ? "批量发货登记成功" : "发货登记成功");
+        this.$message.success("发货成功");
         this.shipVisible = false;
-        if (this.isBatch) {
-          this.$set(this.selectedItems, this.currentOrderId, []);
-        }
+        if (this.isBatch) this.$set(this.selectedItems, this.currentOrderId, []);
         this.getList();
-      }).catch(err => {
-        this.$message.error(err.message || "发货失败");
       });
+    },
+
+    // --- 打印逻辑 ---
+    handlePrint(row) {
+      this.printData = [JSON.parse(JSON.stringify(row))];
+      this.printVisible = true;
+    },
+    doPrint() {
+      const printHtml = document.getElementById('printArea').innerHTML;
+      const windowPrint = window.open('', '', 'width=1100,height=900');
+      windowPrint.document.write(`
+        <html>
+          <head>
+            <title>销售订单明细打印</title>
+            <style>
+              body { font-family: "Microsoft YaHei", sans-serif; margin: 0; padding: 15px; color: #1a1a1a; font-size: 14px; line-height: 1.4; }
+              .print-page-wrapper { page-break-after: always; padding: 10px; border: 1px solid #ccc; margin-bottom: 20px; }
+
+              .print-header-container { text-align: center; margin-bottom: 20px; border-bottom: 3px double #000; padding-bottom: 10px; }
+              .print-main-title { font-size: 26px; font-weight: 800; letter-spacing: 5px; margin: 0 0 15px 0; }
+
+              .print-top-info-grid { display: grid; grid-template-columns: 1.2fr 0.8fr 0.8fr 1.2fr; border: 1px solid #000; text-align: left; }
+              .info-cell { padding: 6px 8px; border: 0.5px solid #000; font-size: 13px; }
+              .price-val { color: #d00; font-weight: bold; font-size: 15px; }
+
+              .print-section-header { font-size: 16px; font-weight: bold; margin: 15px 0 10px 0; padding-left: 10px; border-left: 6px solid #000; }
+
+              .print-item-card { border: 2px solid #000; margin-bottom: 15px; border-radius: 4px; overflow: hidden; background: #fff; }
+              .card-title-row { background: #f2f2f2; padding: 8px 15px; border-bottom: 1px solid #000; display: flex; align-items: center; gap: 15px; }
+              .item-no { background: #000; color: #fff; padding: 2px 10px; border-radius: 3px; font-weight: bold; }
+              .item-name { font-weight: 900; font-size: 16px; flex: 1; }
+              .item-status { font-weight: bold; color: #333; }
+
+              .card-main-body { display: flex; border-top: 1px solid #000; }
+              .body-column { padding: 12px; border-right: 1px solid #000; }
+              .body-column:last-child { border-right: none; }
+              .col-30 { width: 30%; }
+              .col-45 { width: 45%; }
+              .col-25 { width: 25%; }
+
+              .field-row { display: flex; margin-bottom: 6px; align-items: flex-start; }
+              .f-label { font-weight: bold; color: #444; width: 80px; flex-shrink: 0; }
+              .f-value { color: #000; word-break: break-all; }
+              .highlight-red { color: #d00; font-weight: bold; }
+              .address-row { background: #fff9f9; padding: 5px; border: 1px dashed #fbb; border-radius: 3px; margin-top: 5px; }
+
+              .media-center { display: flex; flex-direction: column; align-items: center; justify-content: space-around; gap: 10px; }
+              .qr-box, .voucher-box { text-align: center; width: 100%; }
+              .qr-label { font-size: 11px; font-weight: bold; margin-bottom: 4px; border-bottom: 1px solid #ddd; display: inline-block; padding: 0 5px; }
+              .img-wrapper { border: 1px solid #eee; width: 80px; height: 80px; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: #fafafa; }
+              .img-wrapper img { max-width: 100%; max-height: 100%; }
+              .pdf-tag { font-weight: bold; color: #f5222d; font-size: 18px; }
+
+              .print-remark-area { border: 1px solid #000; padding: 10px; margin-top: 20px; font-size: 14px; background: #fff; }
+
+              @media print {
+                body { padding: 0; }
+                .print-page-wrapper { border: none; margin: 0; }
+                .print-item-card { break-inside: avoid; }
+                .card-title-row { background-color: #f2f2f2 !important; -webkit-print-color-adjust: exact; }
+              }
+            </style>
+          </head>
+          <body>\${printHtml}</body>
+        </html>
+      `);
+      windowPrint.document.close();
+      windowPrint.focus();
+      setTimeout(() => {
+        windowPrint.print();
+        windowPrint.close();
+      }, 500);
     }
   }
 };
@@ -774,7 +826,6 @@ export default {
 .pdf-icon-btn:hover { background: #ff7875; }
 .pdf-icon-preview { width: 100%; height: 180px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 48px; color: #ff4d4f; font-weight: bold; border-radius: 8px; }
 .table-thumb { width: 40px; height: 40px; border-radius: 4px; border: 1px solid #eee; cursor: pointer; display: block; margin: 0 auto; }
-::v-deep .inner-table .el-table__row td { height: 50px !important; }
 
 .dialog-section-tip { font-size: 14px; color: #555; margin-bottom: 20px; font-weight: 500; }
 .group-option-card { border: 1px solid #ebeef5; padding: 18px; border-radius: 8px; margin-bottom: 15px; transition: all 0.3s; background: #fff; cursor: pointer; }
@@ -790,21 +841,32 @@ export default {
 .detail-header { font-size: 12px; font-weight: bold; color: #409EFF; margin-bottom: 8px; }
 .list-pagination { padding: 10px 0 0; text-align: right; }
 
-/* 自制表格样式 */
 .custom-table-wrapper { overflow: hidden; border-radius: 4px; border: 1px solid #ebeef5; }
 .custom-pure-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; }
 .custom-pure-table th { background: #f8f9fb; padding: 10px; color: #606266; font-weight: bold; border-bottom: 1px solid #ebeef5; text-align: center; }
 .custom-pure-table td { padding: 12px 10px; border-bottom: 1px solid #ebeef5; color: #606266; transition: background 0.2s; cursor: pointer; }
-.custom-pure-table tr:hover td { background-color: #f5f7fa; }
-.custom-pure-table tr.is-selected td { background-color: #f0f7ff; }
-
-/* 展开行专用样式 */
-.expand-row-tr:hover td { background-color: #fcfdfe !important; }
-.expand-cell-td { padding: 0 !important; border-bottom: 1px solid #ebeef5; }
-
-/* 自制单选框样式 */
 .custom-radio { width: 16px; height: 16px; border: 1px solid #dcdfe6; border-radius: 50%; display: inline-block; position: relative; background: #fff; vertical-align: middle; }
 .custom-radio.checked { border-color: #409EFF; background: #409EFF; }
 .custom-radio.checked::after { content: ""; width: 6px; height: 6px; background: #fff; border-radius: 50%; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
-.ship-no-text { font-family: monospace; font-weight: bold; color: #409EFF; }
+
+/* 打印预览 CSS 镜像 */
+.print-page-wrapper { background: #fff; padding: 20px; color: #333; }
+.print-header-container { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 15px; }
+.print-main-title { font-size: 22px; margin-bottom: 10px; }
+.print-top-info-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid #000; }
+.info-cell { padding: 5px; border: 0.5px solid #000; font-size: 12px; }
+.print-item-card { border: 1px solid #000; margin-bottom: 10px; border-radius: 4px; }
+.card-title-row { background: #eee; padding: 5px 10px; display: flex; align-items: center; border-bottom: 1px solid #000; }
+.item-name { font-weight: bold; margin-left: 10px; }
+.card-main-body { display: flex; }
+.body-column { padding: 8px; border-right: 1px solid #000; }
+.col-30 { width: 30%; }
+.col-45 { width: 45%; }
+.col-25 { width: 25%; border-right: none; }
+.field-row { display: flex; font-size: 12px; margin-bottom: 3px; }
+.f-label { font-weight: bold; width: 70px; }
+.media-center { display: flex; flex-direction: column; align-items: center; justify-content: space-around; }
+.img-wrapper { border: 1px solid #eee; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; }
+.img-wrapper img { max-width: 100%; max-height: 100%; }
+.print-remark-area { border: 1px solid #000; padding: 8px; font-size: 12px; margin-top: 10px; }
 </style>

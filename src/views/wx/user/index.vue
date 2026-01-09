@@ -80,7 +80,7 @@
               </el-upload>
             </el-form-item>
             <el-form-item label="客户号" prop="userCode" >
-              <el-input v-model="form.userCode"  />
+              <el-input v-model="form.userCode" placeholder="请输入客户号"/>
             </el-form-item>
             <el-form-item label="姓名" prop="name">
               <el-input v-model="form.name" placeholder="请输入姓名" />
