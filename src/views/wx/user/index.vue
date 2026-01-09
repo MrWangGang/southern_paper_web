@@ -79,8 +79,8 @@
                 </div>
               </el-upload>
             </el-form-item>
-            <el-form-item label="客户号" prop="userCode" v-if="form._id">
-              <el-input v-model="form.userCode" disabled />
+            <el-form-item label="客户号" prop="userCode" >
+              <el-input v-model="form.userCode"  />
             </el-form-item>
             <el-form-item label="姓名" prop="name">
               <el-input v-model="form.name" placeholder="请输入姓名" />
