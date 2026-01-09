@@ -89,194 +89,259 @@
                   :disabled="!isAllCancelable(props.row._id) || props.row.orderStatus === '已完成' || props.row.orderStatus === '已关闭' || props.row.orderStatus === '草稿'"
                   @click="handleBatchCancelShip(props.row)"
                 >批量撤销</el-button>
+
+                <el-button
+                  type="warning"
+                  size="mini"
+                  icon="el-icon-printer"
+                  style="margin-left: 10px;"
+                  :disabled="!(selectedItems[props.row._id] && selectedItems[props.row._id].length > 0)"
+                  @click="handleBatchPrintItems(props.row)"
+                >批量打印</el-button>
+
                 <span v-if="hasIllegalSelection(props.row._id)" style="margin-left: 10px; color: #F56C6C; font-size: 12px;">
-                  <i class="el-icon-warning"></i> 勾选项包含“已收货”或非法状态，无法批量操作
+                  <i class="el-icon-warning"></i> 勾选项包含“已收货”无法批量发货,但是可以批量打印
                 </span>
               </div>
 
-              <el-table
-                :data="props.row.orderItems"
-                size="mini"
+              <vxe-table
+                v-if="props.row.orderItems && props.row.orderItems.length > 0"
                 border
-                class="inner-table"
-                style="width: 100%"
-                :row-style="{ height: '50px' }"
-                :cell-style="{ padding: '0px' }"
-                @selection-change="(val) => handleSelectionChange(val, props.row._id)"
+                show-overflow
+                size="mini"
+                max-height="500"
+                min-height="150"
+                :auto-resize="true"
+                :data="props.row.orderItems"
+                class="inner-vxe-table"
+                :row-config="{height: 50, isCurrent: true, isHover: true}"
+                @checkbox-change="(val) => handleVxeSelectionChange(val, props.row._id)"
+                @checkbox-all="(val) => handleVxeSelectionChange(val, props.row._id)"
               >
-                <el-table-column type="selection" width="45" align="center" :selectable="(row) => canSelectItem(row, props.row.orderStatus)" />
-                <el-table-column label="操作" width="160" align="center" fixed="left">
-                  <template slot-scope="item">
-                    <template v-if="['草稿', '已关闭', '已完成'].includes(props.row.orderStatus)" >
-                      <span style="color: #67C23A"><i class="el-icon-circle-close"></i>禁止操作</span>
-                    </template>
-                    <template v-else-if="item.row.deliveryInfo">
-                      <div style="display:flex; justify-content:center; gap:5px">
-                        <template v-if="item.row.deliveryInfo.deliveryStatus === '待发货'">
-                          <el-button type="primary" size="mini" :disabled="isRowSelected(props.row._id, item.row)" @click="handleOpenShip(props.row, item.row)">发货</el-button>
+                <vxe-column type="checkbox" width="50" align="center" fixed="left"></vxe-column>
+
+                <vxe-column title="操作" width="220" align="center" fixed="left">
+                  <template #default="{ row }">
+                    <div style="display:flex; justify-content:center; align-items:center; gap:5px">
+
+                      <template v-if="['草稿', '已关闭', '已完成'].includes(props.row.orderStatus) || (row.deliveryInfo && row.deliveryInfo.deliveryStatus === '已收货')">
+        <span style="color: #67C23A; font-size: 12px; margin-right: 5px;">
+          <i class="el-icon-circle-close"></i> 禁止操作
+        </span>
+                      </template>
+
+                      <template v-else-if="row.deliveryInfo">
+                        <template v-if="row.deliveryInfo.deliveryStatus === '待发货'">
+                          <el-button
+                            type="primary"
+                            size="mini"
+                            :disabled="isRowSelected(props.row._id, row)"
+                            @click="handleOpenShip(props.row, row)"
+                          >发货</el-button>
                           <el-button size="mini" disabled>撤回</el-button>
                         </template>
-                        <template v-else-if="item.row.deliveryInfo.deliveryStatus === '已发货'">
-                          <el-button type="warning" size="mini" :disabled="isRowSelected(props.row._id, item.row)" @click="handleOpenShip(props.row, item.row)">重发</el-button>
-                          <el-button type="success" size="mini" :disabled="isRowSelected(props.row._id, item.row)" @click="handleCancelShip(props.row, item.row)">撤回</el-button>
+
+                        <template v-else-if="row.deliveryInfo.deliveryStatus === '已发货'">
+                          <el-button
+                            type="warning"
+                            size="mini"
+                            :disabled="isRowSelected(props.row._id, row)"
+                            @click="handleOpenShip(props.row, row)"
+                          >重发</el-button>
+                          <el-button
+                            type="success"
+                            size="mini"
+                            :disabled="isRowSelected(props.row._id, row)"
+                            @click="handleCancelShip(props.row, row)"
+                          >撤回</el-button>
                         </template>
-                        <span v-else style="color: #67C23A"><i class="el-icon-circle-close"></i>禁止操作</span>
-                      </div>
-                    </template>
-                    <span v-else style="color: #999">--</span>
+                      </template>
+
+                      <span v-else style="color: #999; margin-right: 5px;">--</span>
+
+                      <el-button
+                        type="text"
+                        size="mini"
+                        icon="el-icon-printer"
+                        @click="handlePrintSingleItem(props.row, row)"
+                      >打印</el-button>
+
+                    </div>
                   </template>
-                </el-table-column>
-                <el-table-column label="发货单据" width="80" align="center">
-                  <template slot-scope="item">
-                    <div v-if="item.row.deliveryInfo && item.row.deliveryInfo.deliveryFileImg">
-                      <div v-if="item.row.deliveryInfo.deliveryFileImg.toLowerCase().endsWith('.pdf')" @click="viewFile(item.row.deliveryInfo.deliveryFileImg)" class="pdf-icon-btn">PDF</div>
-                      <el-image v-else class="table-thumb" :src="item.row.deliveryInfo.deliveryFileImg" :preview-src-list="[item.row.deliveryInfo.deliveryFileImg]" fit="cover" />
+                </vxe-column>
+
+                <vxe-column title="发货单据" width="80" align="center">
+                  <template #default="{ row }">
+                    <div v-if="row.deliveryInfo && row.deliveryInfo.deliveryFileImg">
+                      <div v-if="row.deliveryInfo.deliveryFileImg.toLowerCase().endsWith('.pdf')" @click="viewFile(row.deliveryInfo.deliveryFileImg)" class="pdf-icon-btn">PDF</div>
+                      <el-image v-else class="table-thumb" :src="row.deliveryInfo.deliveryFileImg" :preview-src-list="[row.deliveryInfo.deliveryFileImg]" fit="cover" />
                     </div>
                     <span v-else>--</span>
                   </template>
-                </el-table-column>
-                <el-table-column label="识别码" width="80" align="center">
-                  <template slot-scope="item">
-                    <el-image v-if="item.row.deliveryInfo && item.row.deliveryInfo.deliveryFileQrImg" class="table-thumb" :src="item.row.deliveryInfo.deliveryFileQrImg" :preview-src-list="[item.row.deliveryInfo.deliveryFileQrImg]" fit="cover" />
+                </vxe-column>
+
+                <vxe-column title="识别码" width="80" align="center">
+                  <template #default="{ row }">
+                    <el-image v-if="row.deliveryInfo && row.deliveryInfo.deliveryFileQrImg" class="table-thumb" :src="row.deliveryInfo.deliveryFileQrImg" :preview-src-list="[row.deliveryInfo.deliveryFileQrImg]" fit="cover" />
                     <span v-else>--</span>
                   </template>
-                </el-table-column>
-                <el-table-column label="签名" width="80" align="center">
-                  <template slot-scope="item">
+                </vxe-column>
+
+                <vxe-column title="签名" width="80" align="center">
+                  <template #default="{ row }">
                     <el-image
-                      v-if="item.row.deliveryInfo && item.row.deliveryInfo.signImg"
+                      v-if="row.deliveryInfo && row.deliveryInfo.signImg"
                       class="table-thumb"
                       style="background-color: #FFFFFF; border: 1px solid #eee; display: block; width: 50px; height: 50px; margin: 0 auto;"
-                      :src="item.row.deliveryInfo.signImg"
-                      :preview-src-list="[item.row.deliveryInfo.signImg]"
+                      :src="row.deliveryInfo.signImg"
+                      :preview-src-list="[row.deliveryInfo.signImg]"
                       fit="contain"
                     />
                     <span v-else>--</span>
                   </template>
-                </el-table-column>
-                <el-table-column label="物流状态" min-width="100" align="center">
-                  <template slot-scope="item">
-                    <el-tag v-if="item.row.deliveryInfo && item.row.deliveryInfo.deliveryStatus" size="mini" :color="getDeliveryStatusColor(item.row.deliveryInfo.deliveryStatus)" effect="dark" style="border:none; color: #ffffff;">{{ item.row.deliveryInfo.deliveryStatus }}</el-tag>
+                </vxe-column>
+
+                <vxe-column title="物流状态" width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.deliveryInfo && row.deliveryInfo.deliveryStatus" size="mini" :color="getDeliveryStatusColor(row.deliveryInfo.deliveryStatus)" effect="dark" style="border:none; color: #ffffff;">{{ row.deliveryInfo.deliveryStatus }}</el-tag>
                     <span v-else>--</span>
                   </template>
-                </el-table-column>
-                <el-table-column label="发货时间" min-width="160" align="center">
-                  <template slot-scope="item">
-                    <template v-if="item.row.deliveryInfo && item.row.deliveryInfo.shipTime">
+                </vxe-column>
+
+                <vxe-column title="发货时间" width="160" align="center">
+                  <template #default="{ row }">
+                    <template v-if="row.deliveryInfo && row.deliveryInfo.shipTime">
                         <span style="font-weight: bold; color: #606266;">
-                          {{ dayjs(item.row.deliveryInfo.shipTime).format('YYYY-MM-DD HH:mm') }}
+                          {{ dayjs(row.deliveryInfo.shipTime).format('YYYY-MM-DD HH:mm') }}
                         </span>
                     </template>
                     <span v-else style="color: #999;">--</span>
                   </template>
-                </el-table-column>
-                <el-table-column label="商品名称" min-width="180" align="center" prop="name" show-overflow-tooltip/>
-                <el-table-column label="克重(g)" min-width="100" align="center">
-                  <template slot-scope="item">{{ item.row.base_weight > 0 ? item.row.base_weight : '--' }}</template>
-                </el-table-column>
-                <el-table-column label="系数" min-width="100" align="center">
-                  <template slot-scope="item">{{ formatEmpty(item.row.unit_weight) }}</template>
-                </el-table-column>
-                <el-table-column label="加工服务" min-width="100" align="center">
-                  <template slot-scope="item">
-                    <el-tag size="mini" :color="getServiceColor(item.row.service)" effect="dark" style="border:none">{{ item.row.service }}</el-tag>
+                </vxe-column>
+
+                <vxe-column title="商品名称" width="180" align="center" field="name" />
+                <vxe-column title="克重(g)" width="100" align="center">
+                  <template #default="{ row }">{{ row.base_weight > 0 ? row.base_weight : '--' }}</template>
+                </vxe-column>
+                <vxe-column title="系数" width="100" align="center">
+                  <template #default="{ row }">{{ formatEmpty(row.unit_weight) }}</template>
+                </vxe-column>
+                <vxe-column title="加工服务" width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag size="mini" :color="getServiceColor(row.service)" effect="dark" style="border:none">{{ row.service }}</el-tag>
                   </template>
-                </el-table-column>
-                <el-table-column label="加工规格" min-width="100" align="center">
-                  <template slot-scope="item">
+                </vxe-column>
+                <vxe-column title="加工规格" width="100" align="center">
+                  <template #default="{ row }">
                     <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
-                      <el-tag size="mini" effect="dark" :type="getModeTagType(item.row)">{{ getModeLabel(item.row) }}</el-tag>
-                      <el-tag v-if="item.row.service === '来料加工' && item.row.isDouble" size="mini" effect="dark" type="danger">一开二</el-tag>
+                      <el-tag size="mini" effect="dark" :type="getModeTagType(row)">{{ getModeLabel(row) }}</el-tag>
+                      <el-tag v-if="row.service === '来料加工' && row.isDouble" size="mini" effect="dark" type="danger">一开二</el-tag>
                     </div>
                   </template>
-                </el-table-column>
-                <el-table-column label="幅宽(mm)" min-width="100" align="center">
-                  <template slot-scope="item">{{ formatEmpty(item.row.w) }}</template>
-                </el-table-column>
-                <el-table-column label="长度(mm)" min-width="100" align="center">
-                  <template slot-scope="item">{{ (item.row.h && item.row.h !== '--') ? item.row.h: '--' }}</template>
-                </el-table-column>
-                <el-table-column label="数量" min-width="100" align="center">
-                  <template slot-scope="item">
-                    <div v-if="item.row.qty" style="display: flex; align-items: center; justify-content: center; gap: 4px;">
-                      <span style="font-weight: bold; color: #FF0000;">{{ item.row.qty }}</span>
-                      <el-tag size="mini" type="success" effect="dark">{{ getUnit(item.row) }}</el-tag>
+                </vxe-column>
+                <vxe-column title="幅宽(mm)" width="100" align="center">
+                  <template #default="{ row }">{{ formatEmpty(row.w) }}</template>
+                </vxe-column>
+                <vxe-column title="长度(mm)" width="100" align="center">
+                  <template #default="{ row }">{{ (row.h && row.h !== '--') ? row.h: '--' }}</template>
+                </vxe-column>
+                <vxe-column title="数量" width="100" align="center">
+                  <template #default="{ row }">
+                    <div v-if="row.qty" style="display: flex; align-items: center; justify-content: center; gap: 4px;">
+                      <span style="font-weight: bold; color: #FF0000;">{{ row.qty }}</span>
+                      <el-tag size="mini" type="success" effect="dark">{{ getUnit(row) }}</el-tag>
                     </div>
                     <span v-else>--</span>
                   </template>
-                </el-table-column>
-                <el-table-column label="重量" min-width="100" align="center">
-                  <template slot-scope="item">
-                    <span v-if="item.row.weight && item.row.weight > 0" style="color: #67C23A; font-weight: bold;">
-                      {{ item.row.weight }}吨
+                </vxe-column>
+                <vxe-column title="重量" width="100" align="center">
+                  <template #default="{ row }">
+                    <span v-if="row.weight && row.weight > 0" style="color: #67C23A; font-weight: bold;">
+                      {{ row.weight }}吨
                     </span>
                     <span v-else>--</span>
                   </template>
-                </el-table-column>
-                <el-table-column label="单价(￥/吨)" min-width="100" align="center">
-                  <template slot-scope="item">
-                    <span v-if="item.row.unit_price && item.row.unit_price > 0" style="color: #67C23A; font-weight: bold;">
-                      {{ item.row.unit_price }} 元
+                </vxe-column>
+                <vxe-column title="单价(￥/吨)" width="100" align="center">
+                  <template #default="{ row }">
+                    <span v-if="row.unit_price && row.unit_price > 0" style="color: #67C23A; font-weight: bold;">
+                      {{ row.unit_price }} 元
                     </span>
                     <span v-else>--</span>
                   </template>
-                </el-table-column>
-                <el-table-column label="小计(￥)" min-width="100" align="center" >
-                  <template slot-scope="item"><span class="price-text">{{ item.row.total || '--' }}</span></template>
-                </el-table-column>
-                <el-table-column label="配送方式" min-width="100" align="center">
-                  <template slot-scope="item">
-                    <el-tag v-if="item.row.isSelfPick" size="mini" type="danger" effect="dark">仓库自提</el-tag>
+                </vxe-column>
+                <vxe-column title="小计(￥)" width="100" align="center" >
+                  <template #default="{ row }"><span class="price-text">{{ row.total || '--' }}</span></template>
+                </vxe-column>
+                <vxe-column title="配送方式" width="100" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.isSelfPick" size="mini" type="danger" effect="dark">仓库自提</el-tag>
                     <el-tag v-else size="mini" type="warning" effect="dark">送货上门</el-tag>
                   </template>
-                </el-table-column>
-                <el-table-column label="收货人" min-width="100" align="center" >
-                  <template slot-scope="item">{{ item.row.isSelfPick ? '--' : (item.row.deliveryInfo ? item.row.deliveryInfo.receiverName : '--') }}</template>
-                </el-table-column>
-                <el-table-column label="手机号" min-width="100" align="center" >
-                  <template slot-scope="item">{{ item.row.isSelfPick ? '--' : (item.row.deliveryInfo ? item.row.deliveryInfo.receiverPhone : '--') }}</template>
-                </el-table-column>
-                <el-table-column label="收货地址" min-width="150" align="center" fixed="right" show-overflow-tooltip>
-                  <template slot-scope="item">
-                    <span v-if="item.row.isSelfPick" style="color: #999;">--</span>
-                    <span v-else>{{ (item.row.deliveryInfo && item.row.deliveryInfo.address) || '--' }}</span>
+                </vxe-column>
+                <vxe-column title="收货人" width="100" align="center" >
+                  <template #default="{ row }">{{ row.isSelfPick ? '--' : (row.deliveryInfo ? row.deliveryInfo.receiverName : '--') }}</template>
+                </vxe-column>
+                <vxe-column title="手机号" width="100" align="center" >
+                  <template #default="{ row }">{{ row.isSelfPick ? '--' : (row.deliveryInfo ? row.deliveryInfo.receiverPhone : '--') }}</template>
+                </vxe-column>
+                <vxe-column title="收货地址" width="200" align="center" fixed="right">
+                  <template #default="{ row }">
+                    <el-tooltip
+                      effect="dark"
+                      :content="row.isSelfPick ? '自提' : (row.deliveryInfo && row.deliveryInfo.address) || '--'"
+                      placement="top"
+                      :disabled="row.isSelfPick"
+                    >
+                      <div style="
+                            width: 180px;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            margin: 0 auto;
+                          ">
+                        <span v-if="row.isSelfPick" style="color: #999;">--</span>
+                        <span v-else>{{ (row.deliveryInfo && row.deliveryInfo.address) || '--' }}</span>
+                      </div>
+                    </el-tooltip>
                   </template>
-                </el-table-column>
-                <el-table-column label="收货时间" min-width="160" align="center">
-                  <template slot-scope="item">
-                    <template v-if="item.row.deliveryInfo && item.row.deliveryInfo.receiveTime">
+                </vxe-column>
+                <vxe-column title="收货时间" width="160" align="center">
+                  <template #default="{ row }">
+                    <template v-if="row.deliveryInfo && row.deliveryInfo.receiveTime">
                         <span style="font-weight: bold; color: #606266;">
-                          {{ dayjs(item.row.deliveryInfo.receiveTime).format('YYYY-MM-DD HH:mm') }}
+                          {{ dayjs(row.deliveryInfo.receiveTime).format('YYYY-MM-DD HH:mm') }}
                         </span>
                     </template>
                     <span v-else style="color: #999;">--</span>
                   </template>
-                </el-table-column>
-              </el-table>
+                </vxe-column>
+              </vxe-table>
+              <div v-else style="text-align:center; padding: 20px; color: #999;">暂无商品明细</div>
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column label="订单编号" prop="orderNo" align="center" />
+        <el-table-column label="订单编号" prop="orderNo" align="center" show-overflow-tooltip/>
         <el-table-column label="下单账号" align="center">
-          <template slot-scope="scope"><span>{{ scope.row.username }}</span></template>
+          <template slot-scope="scope"><span show-overflow-tooltip>{{ scope.row.username }}</span></template>
         </el-table-column>
         <el-table-column label="客户名称" align="center">
           <template slot-scope="scope"><span>{{ scope.row.name }}</span></template>
         </el-table-column>
-        <el-table-column label="客户公司" align="center">
+        <el-table-column label="客户公司" align="center" show-overflow-tooltip>
           <template slot-scope="scope"><span>{{ scope.row.company }}</span></template>
         </el-table-column>
-        <el-table-column label="合计金额" align="center">
+        <el-table-column label="合计金额" align="center" show-overflow-tooltip>
           <template slot-scope="scope"><span class="price-text">￥{{ scope.row.allTotal }}</span></template>
         </el-table-column>
-        <el-table-column label="发货仓库" align="center">
+        <el-table-column label="发货仓库" align="center" show-overflow-tooltip>
           <template slot-scope="scope">
             <el-tag v-if="scope.row.warehouse" size="small" effect="dark" :color="getWarehouseTagColor(scope.row.warehouse)" style="border: none;">{{ scope.row.warehouse }}</el-tag>
             <span v-else style="color: #999;">--</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" align="center">
+        <el-table-column label="状态" align="center" show-overflow-tooltip>
           <template slot-scope="scope"><el-tag :type="getStatusTag(scope.row.orderStatus)" size="small">{{ scope.row.orderStatus }}</el-tag></template>
         </el-table-column>
         <el-table-column label="备注" prop="remark" align="center" min-width="150" show-overflow-tooltip>
@@ -284,7 +349,7 @@
         </el-table-column>
         <el-table-column label="操作" fixed="right" align="center" width="220">
           <template slot-scope="scope">
-            <el-button type="text" size="small" icon="el-icon-printer" @click="handlePrint(scope.row)">打印</el-button>
+            <el-button type="text" size="small" icon="el-icon-printer" @click="handlePrint(scope.row)">打印整单</el-button>
 
             <el-dropdown v-if="['待发货', '已关闭'].includes(scope.row.orderStatus)" @command="(status) => handleUpdateStatus(scope.row, status)" trigger="click">
               <el-button type="text" size="small">变更状态<i class="el-icon-arrow-down el-icon--right"></i></el-button>
@@ -303,11 +368,11 @@
       </div>
     </el-card>
 
-    <el-dialog title="打印订单" :visible.sync="printVisible" width="1050px" append-to-body>
+    <el-dialog title="打印预览" :visible.sync="printVisible" width="1050px" append-to-body>
       <div id="printArea">
         <div v-for="(order, index) in printData" :key="index" class="print-page-wrapper">
           <div class="print-header-container">
-            <h1 class="print-main-title">订 单 明 细</h1>
+            <h1 class="print-main-title">出 库 单 / 订 单 明 细</h1>
             <div class="print-top-info-grid">
               <div class="info-cell"><strong>订单编号：</strong>{{ order.orderNo }}</div>
               <div class="info-cell"><strong>合计金额：</strong><span class="price-val">￥{{ order.allTotal }}</span></div>
@@ -319,8 +384,7 @@
               <div class="info-cell"><strong>订单状态：</strong>{{ order.orderStatus }}</div>
             </div>
           </div>
-
-          <div class="print-section-header">商品发货明细 (共 {{ order.orderItems ? order.orderItems.length : 0 }} 项)</div>
+          <div class="print-section-header">商品信息明细</div>
 
           <div v-for="(item, idx) in order.orderItems" :key="'item'+idx" class="print-item-card">
             <div class="card-title-row">
@@ -350,6 +414,8 @@
                   <span class="f-value">{{ item.isSelfPick ? '--' : (item.deliveryInfo ? item.deliveryInfo.address : '--') }}</span>
                 </div>
                 <div class="field-row" style="margin-top: 8px;"><span class="f-label">发货时间：</span><span class="f-value">{{ (item.deliveryInfo && item.deliveryInfo.shipTime) ? dayjs(item.deliveryInfo.shipTime).format('YYYY-MM-DD HH:mm') : '--' }}</span></div>
+                <div class="field-row" style="margin-top: 8px;"><span class="f-label">收货时间：</span><span class="f-value">{{ (item.deliveryInfo && item.deliveryInfo.receiveTime) ? dayjs(item.deliveryInfo.receiveTime).format('YYYY-MM-DD HH:mm') : '--' }}</span></div>
+
               </div>
 
               <div class="body-column col-25 media-center">
@@ -441,9 +507,9 @@
                                 <span v-else>送货</span>
                               </template>
                             </el-table-column>
-                            <el-table-column prop="deliveryInfo.receiverName" label="收货人"  align="center" />
-                            <el-table-column prop="deliveryInfo.receiverPhone" label="手机号" show-overflow-tooltip />
-                            <el-table-column prop="deliveryInfo.address" label="收货地址" show-overflow-tooltip />
+                            <el-table-column prop="deliveryInfo.receiverName" label="收货人"  align="center" show-overflow-tooltip/>
+                            <el-table-column prop="deliveryInfo.receiverPhone" label="手机号" show-overflow-tooltip/>
+                            <el-table-column prop="deliveryInfo.address" label="收货地址" show-overflow-tooltip/>
                           </el-table>
                         </div>
                       </td>
@@ -587,7 +653,12 @@ export default {
       const map = { '张数': 'success', '件数': 'warning', '吨数': 'danger' };
       return map[this.getModeLabel(item)] || 'info';
     },
-    getUnit(item) { return (item.service === '零切' || item.service === '一开二') ? '张' : (item.unit || '件'); },
+    getUnit(item) {
+      const { service, isStandard, unit } = item;
+      if (service === '零切' || service === '一开二') return '张';
+      if (service === '来料加工') return isStandard ? '张' : '件';
+      return isStandard ? '件' : (unit || '吨');
+    },
     getList() {
       this.loading = true;
       getOrderList(this.queryParams).then(res => {
@@ -609,11 +680,10 @@ export default {
       const map = { '待发货': 'warning', '部分发货': 'primary', '全部发货': 'success', '部分收货': 'primary', '已完成': 'success', '已关闭': 'danger', '草稿': 'info' };
       return map[s] || 'info';
     },
-    canSelectItem(row, mainStatus) {
-      if (['已关闭', '草稿', '已完成'].includes(mainStatus)) return false;
-      return row.deliveryInfo && (row.deliveryInfo.deliveryStatus === '待发货' || row.deliveryInfo.deliveryStatus === '已发货');
+    // vxe-table 专用勾选回调
+    handleVxeSelectionChange({ records }, orderId) {
+      this.$set(this.selectedItems, orderId, records);
     },
-    handleSelectionChange(selection, orderId) { this.$set(this.selectedItems, orderId, selection); },
     isRowSelected(orderId, row) {
       const selected = this.selectedItems[orderId] || [];
       return selected.some(item => item.deliveryInfo.deliveryId === row.deliveryInfo.deliveryId);
@@ -739,94 +809,115 @@ export default {
         this.getList();
       });
     },
-
-    // --- 打印逻辑 ---
     handlePrint(row) {
       this.printData = [JSON.parse(JSON.stringify(row))];
       this.printVisible = true;
     },
+    handlePrintSingleItem(order, item) {
+      const newOrder = JSON.parse(JSON.stringify(order));
+      newOrder.orderItems = [item];
+      this.printData = [newOrder];
+      this.printVisible = true;
+    },
+    handleBatchPrintItems(order) {
+      const selections = this.selectedItems[order._id] || [];
+      if (selections.length === 0) return;
+      this.printData = selections.map(item => {
+        const o = JSON.parse(JSON.stringify(order));
+        o.orderItems = [item];
+        return o;
+      });
+      this.printVisible = true;
+    },
     doPrint() {
-      const printHtml = document.getElementById('printArea').innerHTML;
+      const printContent = document.getElementById('printArea').innerHTML;
       const windowPrint = window.open('', '', 'width=1100,height=900');
+      if (!windowPrint) { this.$message.error("弹出窗口被拦截"); return; }
       windowPrint.document.write(`
+        <!DOCTYPE html>
         <html>
           <head>
             <title>销售订单明细打印</title>
             <style>
-              body { font-family: "Microsoft YaHei", sans-serif; margin: 0; padding: 15px; color: #1a1a1a; font-size: 14px; line-height: 1.4; }
-              .print-page-wrapper { page-break-after: always; padding: 10px; border: 1px solid #ccc; margin-bottom: 20px; }
-
+              * { box-sizing: border-box; }
+              body { font-family: "Microsoft YaHei", sans-serif; margin: 0; padding: 0; color: #1a1a1a; background: #fff; }
+              .print-page-wrapper { width: 100%; padding: 20px; page-break-after: always; page-break-inside: avoid; clear: both; }
+              .print-page-wrapper:last-child { page-break-after: auto; }
               .print-header-container { text-align: center; margin-bottom: 20px; border-bottom: 3px double #000; padding-bottom: 10px; }
               .print-main-title { font-size: 26px; font-weight: 800; letter-spacing: 5px; margin: 0 0 15px 0; }
-
               .print-top-info-grid { display: grid; grid-template-columns: 1.2fr 0.8fr 0.8fr 1.2fr; border: 1px solid #000; text-align: left; }
               .info-cell { padding: 6px 8px; border: 0.5px solid #000; font-size: 13px; }
               .price-val { color: #d00; font-weight: bold; font-size: 15px; }
-
               .print-section-header { font-size: 16px; font-weight: bold; margin: 15px 0 10px 0; padding-left: 10px; border-left: 6px solid #000; }
-
               .print-item-card { border: 2px solid #000; margin-bottom: 15px; border-radius: 4px; overflow: hidden; background: #fff; }
               .card-title-row { background: #f2f2f2; padding: 8px 15px; border-bottom: 1px solid #000; display: flex; align-items: center; gap: 15px; }
               .item-no { background: #000; color: #fff; padding: 2px 10px; border-radius: 3px; font-weight: bold; }
               .item-name { font-weight: 900; font-size: 16px; flex: 1; }
-              .item-status { font-weight: bold; color: #333; }
-
-              .card-main-body { display: flex; border-top: 1px solid #000; }
+              .card-main-body { display: flex; border-top: 1px solid #000; width: 100%; }
               .body-column { padding: 12px; border-right: 1px solid #000; }
               .body-column:last-child { border-right: none; }
               .col-30 { width: 30%; }
               .col-45 { width: 45%; }
               .col-25 { width: 25%; }
-
-              .field-row { display: flex; margin-bottom: 6px; align-items: flex-start; }
+              .field-row { display: flex; margin-bottom: 6px; align-items: flex-start; font-size: 13px; }
               .f-label { font-weight: bold; color: #444; width: 80px; flex-shrink: 0; }
-              .f-value { color: #000; word-break: break-all; }
               .highlight-red { color: #d00; font-weight: bold; }
               .address-row { background: #fff9f9; padding: 5px; border: 1px dashed #fbb; border-radius: 3px; margin-top: 5px; }
-
               .media-center { display: flex; flex-direction: column; align-items: center; justify-content: space-around; gap: 10px; }
-              .qr-box, .voucher-box { text-align: center; width: 100%; }
+              .qr-box { text-align: center; width: 100%; }
               .qr-label { font-size: 11px; font-weight: bold; margin-bottom: 4px; border-bottom: 1px solid #ddd; display: inline-block; padding: 0 5px; }
-              .img-wrapper { border: 1px solid #eee; width: 80px; height: 80px; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: #fafafa; }
-              .img-wrapper img { max-width: 100%; max-height: 100%; }
-              .pdf-tag { font-weight: bold; color: #f5222d; font-size: 18px; }
-
+              .img-wrapper { border: 1px solid #eee; width: 100px; height: 100px; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: #fafafa; }
+              .img-wrapper img { max-width: 100%; max-height: 100%; display: block; }
               .print-remark-area { border: 1px solid #000; padding: 10px; margin-top: 20px; font-size: 14px; background: #fff; }
-
               @media print {
-                body { padding: 0; }
-                .print-page-wrapper { border: none; margin: 0; }
-                .print-item-card { break-inside: avoid; }
-                .card-title-row { background-color: #f2f2f2 !important; -webkit-print-color-adjust: exact; }
+                @page { size: auto; margin: 10mm; }
+                .print-page-wrapper { border: none; margin: 0; height: auto; page-break-after: always !important; -webkit-print-color-adjust: exact; }
+                .card-title-row { background-color: #f2f2f2 !important; }
+                .address-row { background-color: #fff9f9 !important; }
               }
             </style>
           </head>
-          <body>\${printHtml}</body>
+          <body>${printContent}</body>
         </html>
       `);
       windowPrint.document.close();
-      windowPrint.focus();
+      windowPrint.onload = () => {
+        windowPrint.focus();
+        setTimeout(() => { windowPrint.print(); windowPrint.close(); }, 300);
+      };
       setTimeout(() => {
-        windowPrint.print();
-        windowPrint.close();
-      }, 500);
+        if (windowPrint.document.readyState === 'complete') { windowPrint.print(); windowPrint.close(); }
+      }, 1000);
     }
   }
 };
 </script>
 
 <style scoped>
+/* 确保展开行容器不会收缩 */
 ::v-deep .el-table__expanded-cell { padding: 0 !important; background-color: #fcfdfe !important; }
-.expand-container { padding: 20px 30px; box-sizing: border-box; width: 100%; }
+.expand-container {
+  padding: 20px 30px;
+  box-sizing: border-box;
+  width: 100%;
+  background: #fcfdfe;
+  min-height: 200px; /* 保证有一个最小高度显示内容 */
+}
+
+/* vxe-table 内部滚动条样式修正 */
+.inner-vxe-table {
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  margin-bottom: 10px;
+  background-color: #fff;
+}
+
 .inner-title { font-weight: bold; margin-bottom: 12px; color: #333; font-size: 14px; }
 .inner-title::before { content: ""; width: 4px; height: 16px; background: #1890ff; display: inline-block; vertical-align: middle; margin-right: 8px; border-radius: 2px; }
-.inner-table { box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1); }
 .price-text { color: #f5222d; font-weight: bold; }
 .pdf-icon-btn { width: 40px; height: 40px; background: #ff4d4f; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border-radius: 4px; cursor: pointer; margin: 0 auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 .pdf-icon-btn:hover { background: #ff7875; }
 .pdf-icon-preview { width: 100%; height: 180px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-size: 48px; color: #ff4d4f; font-weight: bold; border-radius: 8px; }
 .table-thumb { width: 40px; height: 40px; border-radius: 4px; border: 1px solid #eee; cursor: pointer; display: block; margin: 0 auto; }
-
 .dialog-section-tip { font-size: 14px; color: #555; margin-bottom: 20px; font-weight: 500; }
 .group-option-card { border: 1px solid #ebeef5; padding: 18px; border-radius: 8px; margin-bottom: 15px; transition: all 0.3s; background: #fff; cursor: pointer; }
 .group-option-card:hover { border-color: #c0d9ff; background: #f9fbff; }
@@ -835,12 +926,10 @@ export default {
 .main-label { font-size: 15px; font-weight: bold; color: #333; display: block; margin-bottom: 5px; }
 .sub-label { font-size: 13px; color: #888; margin: 0; line-height: 1.4; }
 .sub-label.error { color: #F56C6C; }
-
 .existing-list-container { margin-top: 20px; padding: 10px; background: #fff; border-radius: 6px; border: 1px dashed #dcdfe6; }
 .ship-detail-box { padding: 10px 15px; background: #fcfdfe; }
 .detail-header { font-size: 12px; font-weight: bold; color: #409EFF; margin-bottom: 8px; }
 .list-pagination { padding: 10px 0 0; text-align: right; }
-
 .custom-table-wrapper { overflow: hidden; border-radius: 4px; border: 1px solid #ebeef5; }
 .custom-pure-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; }
 .custom-pure-table th { background: #f8f9fb; padding: 10px; color: #606266; font-weight: bold; border-bottom: 1px solid #ebeef5; text-align: center; }
@@ -849,7 +938,7 @@ export default {
 .custom-radio.checked { border-color: #409EFF; background: #409EFF; }
 .custom-radio.checked::after { content: ""; width: 6px; height: 6px; background: #fff; border-radius: 50%; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 
-/* 打印预览 CSS 镜像 */
+/* 打印预览样式 */
 .print-page-wrapper { background: #fff; padding: 20px; color: #333; }
 .print-header-container { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 15px; }
 .print-main-title { font-size: 22px; margin-bottom: 10px; }

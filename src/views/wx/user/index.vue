@@ -30,8 +30,8 @@
         </el-form>
 
         <el-table v-loading="loading" :data="userList">
-          <el-table-column label="客户号" align="center" prop="userCode" width="100" />
-          <el-table-column label="用户" align="left" width="200">
+          <el-table-column label="客户号" align="center" prop="userCode" width="100" show-overflow-tooltip/>
+          <el-table-column label="用户" align="left" width="200" show-overflow-tooltip>
             <template slot-scope="scope">
               <div style="display: flex; align-items: center;">
                 <el-avatar :size="30" :src="scope.row.faceImg" style="margin-right: 10px; flex-shrink: 0; background-color: rgba(0,0,0,0.05); color: #666;">
@@ -41,9 +41,9 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="手机" align="center" prop="phone" />
-          <el-table-column label="公司" align="center" prop="company" />
-          <el-table-column label="账号" align="center" prop="username" />
+          <el-table-column label="手机" align="center" prop="phone" show-overflow-tooltip/>
+          <el-table-column label="公司" align="center" prop="company" show-overflow-tooltip/>
+          <el-table-column label="账号" align="center" prop="username" show-overflow-tooltip/>
           <el-table-column label="角色" align="center" prop="role">
             <template slot-scope="scope">
               <el-tag size="small" type="info">{{ scope.row.role === 'customer' ? '客户' : scope.row.role }}</el-tag>
@@ -54,7 +54,7 @@
               <el-switch v-model="scope.row.isLogin" @change="handleStatusChange(scope.row)"></el-switch>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" align="center" prop="createTime" width="160">
+          <el-table-column label="创建时间" align="center" prop="createTime" width="160" show-overflow-tooltip>
             <template slot-scope="scope">
               <span>{{ parseTime(scope.row.createTime) }}</span>
             </template>
