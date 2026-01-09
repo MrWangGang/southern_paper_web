@@ -398,8 +398,18 @@
                 <div class="field-row"><span class="f-label">克重：</span><span class="f-value">{{ item.base_weight }}g</span></div>
                 <div class="field-row"><span class="f-label">系数：</span><span class="f-value">{{ item.unit_weight || '--' }}</span></div>
                 <div class="field-row"><span class="f-label">加工服务：</span><span class="f-value">{{ item.service }}</span></div>
-                <div class="field-row"><span class="f-label">加工规格：</span><span class="f-value">{{ item.w }} * {{ item.h }}</span></div>
+                <div class="field-row">
+                  <span class="f-label">加工规格：</span>
+                  <span class="f-value">
+                    {{ getModeLabel(item) }}
+                    <span v-if="item.service === '来料加工' && item.isDouble" class="highlight-red">
+                      (一开二)
+                    </span>
+                  </span>
+                </div>
                 <div class="field-row"><span class="f-label">单价：</span><span class="f-value">{{ item.unit_price }} 元</span></div>
+                <div class="field-row"><span class="f-label">幅宽(mm)：</span><span class="f-value">{{ formatEmpty(item.w) }}</span></div>
+                <div class="field-row"><span class="f-label">长度(mm)：</span><span class="f-value">{{ (item.h && item.h !== '--') ? item.h: '--' }}</span></div>
                 <div class="field-row"><span class="f-label">下单数量：</span><span class="f-value highlight-red">{{ item.qty }} {{ getUnit(item) }}</span></div>
                 <div class="field-row"><span class="f-label">订单重量：</span><span class="f-value">{{ item.weight || '--' }}吨</span></div>
                 <div class="field-row"><span class="f-label">明细小计：</span><span class="f-value highlight-red">￥{{ item.total }}</span></div>
