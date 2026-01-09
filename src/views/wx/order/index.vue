@@ -303,11 +303,11 @@
       </div>
     </el-card>
 
-    <el-dialog title="打印订单预览" :visible.sync="printVisible" width="1050px" append-to-body>
+    <el-dialog title="打印订单" :visible.sync="printVisible" width="1050px" append-to-body>
       <div id="printArea">
         <div v-for="(order, index) in printData" :key="index" class="print-page-wrapper">
           <div class="print-header-container">
-            <h1 class="print-main-title">销 售 订 单 发 货 明 细 表</h1>
+            <h1 class="print-main-title">订 单 明 细</h1>
             <div class="print-top-info-grid">
               <div class="info-cell"><strong>订单编号：</strong>{{ order.orderNo }}</div>
               <div class="info-cell"><strong>合计金额：</strong><span class="price-val">￥{{ order.allTotal }}</span></div>
