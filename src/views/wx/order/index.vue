@@ -96,7 +96,7 @@
                   icon="el-icon-printer"
                   style="margin-left: 10px;"
                   :disabled="!(selectedItems[props.row._id] && selectedItems[props.row._id].length > 0)"
-                  @click="handleBatchPrintItems(props.row)"
+                  @click="handlePrintBatchItems(props.row)"
                 >批量打印</el-button>
 
                 <span v-if="hasIllegalSelection(props.row._id)" style="margin-left: 10px; color: #F56C6C; font-size: 12px;">
@@ -121,13 +121,13 @@
                 <vxe-column type="checkbox" width="50" align="center" fixed="left"></vxe-column>
 
                 <vxe-column title="操作" width="220" align="center" fixed="left">
-                  <template #default="{ row }">
+                  <template #default="{ row, rowIndex }">
                     <div style="display:flex; justify-content:center; align-items:center; gap:5px">
 
                       <template v-if="['草稿', '已关闭', '已完成'].includes(props.row.orderStatus) || (row.deliveryInfo && row.deliveryInfo.deliveryStatus === '已收货')">
-        <span style="color: #67C23A; font-size: 12px; margin-right: 5px;">
-          <i class="el-icon-circle-close"></i> 禁止操作
-        </span>
+                        <span style="color: #67C23A; font-size: 12px; margin-right: 5px;">
+                          <i class="el-icon-circle-close"></i> 禁止操作
+                        </span>
                       </template>
 
                       <template v-else-if="row.deliveryInfo">
@@ -163,7 +163,7 @@
                         type="text"
                         size="mini"
                         icon="el-icon-printer"
-                        @click="handlePrintSingleItem(props.row, row)"
+                        @click="handlePrintSingleItem(props.row, row, rowIndex)"
                       >打印</el-button>
 
                     </div>
@@ -378,15 +378,16 @@
             <h1 class="print-main-title">订 单 明 细</h1>
             <div class="print-top-info-grid">
               <div class="info-cell"><strong>订单编号：</strong>{{ order.orderNo }}</div>
-              <div class="info-cell"><strong>发货仓库：</strong>{{ order.warehouse || '--' }}</div>
-              <div class="info-cell"><strong>下单时间：</strong>{{ dayjs(order.createTime).format('YYYY-MM-DD HH:mm') }}</div>
               <div class="info-cell"><strong>客户公司：</strong>{{ order.company }}</div>
+              <div class="info-cell"><strong>合计重量：</strong>{{ order.allWeight }} 吨</div>
+              <div class="info-cell"><strong>下单时间：</strong>{{ dayjs(order.createTime).format('YYYY-MM-DD HH:mm') }}</div>
             </div>
           </div>
 
           <div v-for="(item, idx) in order.orderItems" :key="'item'+idx" class="print-item-card">
             <div class="card-title-row">
-              <span class="item-no">#{{ idx + 1 }}</span>
+              <span class="item-no">#{{ item.printIdx || idx + 1 }}</span>
+              <span class="item-name">{{ item.name }}</span>
             </div>
 
             <div class="card-main-body-table">
@@ -416,6 +417,10 @@
                   <td  width="100px">{{ (item.h && item.h !== '--') ? item.h: '--' }}</td>
                   <td width="100px"class="highlight-red">{{ item.qty }} {{ getUnit(item) }}</td>
                   <td width="100px">{{ item.weight || '--' }}</td>
+                </tr>
+                <tr>
+                  <td colspan="6" style="text-align: right; font-weight: bold; padding-right: 20px;">合计重量：</td>
+                  <td style="font-weight: bold; color: #67C23A;">{{ item.weight || '--' }}</td>
                 </tr>
                 </tbody>
               </table>
@@ -841,18 +846,24 @@ export default {
       this.printData = [JSON.parse(JSON.stringify(row))];
       this.printVisible = true;
     },
-    handlePrintSingleItem(order, item) {
+    handlePrintSingleItem(order, item, index) {
       const newOrder = JSON.parse(JSON.stringify(order));
-      newOrder.orderItems = [item];
+      const itemCopy = JSON.parse(JSON.stringify(item));
+      // 修正：单个打印时，使用外部点击的索引 + 1
+      itemCopy.printIdx = index + 1;
+      newOrder.orderItems = [itemCopy];
       this.printData = [newOrder];
       this.printVisible = true;
     },
     handlePrintBatchItems(order) {
       const selections = this.selectedItems[order._id] || [];
       if (selections.length === 0) return;
-      this.printData = selections.map(item => {
+      this.printData = selections.map((item, index) => {
         const o = JSON.parse(JSON.stringify(order));
-        o.orderItems = [item];
+        const itemCopy = JSON.parse(JSON.stringify(item));
+        // 给item注入打印时的全局序号
+        itemCopy.printIdx = index + 1;
+        o.orderItems = [itemCopy];
         return o;
       });
       this.printVisible = true;
@@ -873,7 +884,7 @@ export default {
               .print-page-wrapper:last-child { page-break-after: auto; }
               .print-header-container { text-align: center; margin-bottom: 20px; border-bottom: 3px double #000; padding-bottom: 10px; }
               .print-main-title { font-size: 26px; font-weight: 800; letter-spacing: 5px; margin: 0 0 15px 0; }
-              .print-top-info-grid { display: grid; grid-template-columns: 1.2fr 0.8fr 0.8fr 1.2fr; border: 1px solid #000; text-align: left; }
+              .print-top-info-grid { display: grid; grid-template-columns: 1.2fr 1.2fr 0.8fr 0.8fr; border: 1px solid #000; text-align: left; }
               .info-cell { padding: 6px 8px; border: 0.5px solid #000; font-size: 13px; }
 
               .print-item-card { border: 2px solid #000; margin-bottom: 15px; border-radius: 4px; overflow: hidden; background: #fff; }
