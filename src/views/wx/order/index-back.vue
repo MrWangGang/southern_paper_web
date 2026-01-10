@@ -332,11 +332,8 @@
         <el-table-column label="客户公司" align="center" show-overflow-tooltip>
           <template slot-scope="scope"><span>{{ scope.row.company }}</span></template>
         </el-table-column>
-        <el-table-column label="合计金额(￥)" align="center" show-overflow-tooltip>
+        <el-table-column label="合计金额" align="center" show-overflow-tooltip>
           <template slot-scope="scope"><span class="price-text">￥{{ scope.row.allTotal }}</span></template>
-        </el-table-column>
-        <el-table-column label="合计重量(吨)" align="center" show-overflow-tooltip>
-          <template slot-scope="scope"><span class="price-text">{{ scope.row.allWeight }}吨</span></template>
         </el-table-column>
         <el-table-column label="发货仓库" align="center" show-overflow-tooltip>
           <template slot-scope="scope">
@@ -375,55 +372,76 @@
       <div id="printArea">
         <div v-for="(order, index) in printData" :key="index" class="print-page-wrapper">
           <div class="print-header-container">
-            <h1 class="print-main-title">订 单 明 细</h1>
+            <h1 class="print-main-title">出 库 单 / 订 单 明 细</h1>
             <div class="print-top-info-grid">
               <div class="info-cell"><strong>订单编号：</strong>{{ order.orderNo }}</div>
+              <div class="info-cell"><strong>合计金额：</strong><span class="price-val">￥{{ order.allTotal }}</span></div>
               <div class="info-cell"><strong>发货仓库：</strong>{{ order.warehouse || '--' }}</div>
               <div class="info-cell"><strong>下单时间：</strong>{{ dayjs(order.createTime).format('YYYY-MM-DD HH:mm') }}</div>
+              <div class="info-cell"><strong>下单账号：</strong>{{ order.username }}</div>
+              <div class="info-cell"><strong>客户姓名：</strong>{{ order.name }}</div>
               <div class="info-cell"><strong>客户公司：</strong>{{ order.company }}</div>
+              <div class="info-cell"><strong>订单状态：</strong>{{ order.orderStatus }}</div>
             </div>
           </div>
+          <div class="print-section-header">商品信息明细</div>
 
           <div v-for="(item, idx) in order.orderItems" :key="'item'+idx" class="print-item-card">
             <div class="card-title-row">
               <span class="item-no">#{{ idx + 1 }}</span>
+              <span class="item-name">{{ item.name }}</span>
+              <span class="item-status">[{{ (item.deliveryInfo && item.deliveryInfo.deliveryStatus) || '待发货' }}]</span>
             </div>
 
-            <div class="card-main-body-table">
-              <table class="print-table">
-                <thead>
-                <tr>
-                  <th>商品名称</th>
-                  <th>加工服务</th>
-                  <th>加工规格</th>
-                  <th>幅宽(mm)</th>
-                  <th>长度(mm)</th>
-                  <th>数量</th>
-                  <th>重量(吨)</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr>
-                  <td width="180px">
-                    {{ item.name }}{{ item.base_weight }}g
-                  </td>
-                  <td  width="100px">{{ item.service }}</td>
-                  <td width="100px">
+            <div class="card-main-body">
+              <div class="body-column col-30">
+                <div class="field-row"><span class="f-label">克重：</span><span class="f-value">{{ item.base_weight }}g</span></div>
+                <div class="field-row"><span class="f-label">系数：</span><span class="f-value">{{ item.unit_weight || '--' }}</span></div>
+                <div class="field-row"><span class="f-label">加工服务：</span><span class="f-value">{{ item.service }}</span></div>
+                <div class="field-row">
+                  <span class="f-label">加工规格：</span>
+                  <span class="f-value">
                     {{ getModeLabel(item) }}
-                    <span v-if="item.service === '来料加工' && item.isDouble" style="color:red">(一开二)</span>
-                  </td>
-                  <td width="100px">{{ formatEmpty(item.w) }}</td>
-                  <td  width="100px">{{ (item.h && item.h !== '--') ? item.h: '--' }}</td>
-                  <td width="100px"class="highlight-red">{{ item.qty }} {{ getUnit(item) }}</td>
-                  <td width="100px">{{ item.weight || '--' }}</td>
-                </tr>
-                </tbody>
-              </table>
+                    <span v-if="item.service === '来料加工' && item.isDouble" class="highlight-red">
+                      (一开二)
+                    </span>
+                  </span>
+                </div>
+                <div class="field-row"><span class="f-label">单价：</span><span class="f-value">{{ item.unit_price }} 元</span></div>
+                <div class="field-row"><span class="f-label">幅宽(mm)：</span><span class="f-value">{{ formatEmpty(item.w) }}</span></div>
+                <div class="field-row"><span class="f-label">长度(mm)：</span><span class="f-value">{{ (item.h && item.h !== '--') ? item.h: '--' }}</span></div>
+                <div class="field-row"><span class="f-label">下单数量：</span><span class="f-value highlight-red">{{ item.qty }} {{ getUnit(item) }}</span></div>
+                <div class="field-row"><span class="f-label">订单重量：</span><span class="f-value">{{ item.weight || '--' }}吨</span></div>
+                <div class="field-row"><span class="f-label">明细小计：</span><span class="f-value highlight-red">￥{{ item.total }}</span></div>
+              </div>
+
+              <div class="body-column col-45">
+                <div class="field-row"><span class="f-label">配送方式：</span><span class="f-value">{{ item.isSelfPick ? '仓库自提' : '送货上门' }}</span></div>
+                <div class="field-row"><span class="f-label">收货人员：</span><span class="f-value">{{ item.isSelfPick ? '--' : (item.deliveryInfo ? item.deliveryInfo.receiverName : '--') }}</span></div>
+                <div class="field-row"><span class="f-label">联系电话：</span><span class="f-value">{{ item.isSelfPick ? '--' : (item.deliveryInfo ? item.deliveryInfo.receiverPhone : '--') }}</span></div>
+                <div class="field-row address-row">
+                  <span class="f-label">收货地址：</span>
+                  <span class="f-value">{{ item.isSelfPick ? '--' : (item.deliveryInfo ? item.deliveryInfo.address : '--') }}</span>
+                </div>
+                <div class="field-row" style="margin-top: 8px;"><span class="f-label">发货时间：</span><span class="f-value">{{ (item.deliveryInfo && item.deliveryInfo.shipTime) ? dayjs(item.deliveryInfo.shipTime).format('YYYY-MM-DD HH:mm') : '--' }}</span></div>
+                <div class="field-row" style="margin-top: 8px;"><span class="f-label">收货时间：</span><span class="f-value">{{ (item.deliveryInfo && item.deliveryInfo.receiveTime) ? dayjs(item.deliveryInfo.receiveTime).format('YYYY-MM-DD HH:mm') : '--' }}</span></div>
+
+              </div>
+
+              <div class="body-column col-25 media-center">
+                <div class="qr-box">
+                  <div class="qr-label">识别码</div>
+                  <div class="img-wrapper">
+                    <img v-if="item.deliveryInfo && item.deliveryInfo.deliveryFileQrImg" :src="item.deliveryInfo.deliveryFileQrImg">
+                    <span v-else>无</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="print-remark-area">
-            <strong>备注：</strong>{{ order.remark || '无备注' }}
+            <strong>订单总备注：</strong>{{ order.remark || '无备注' }}
           </div>
         </div>
       </div>
@@ -847,7 +865,7 @@ export default {
       this.printData = [newOrder];
       this.printVisible = true;
     },
-    handlePrintBatchItems(order) {
+    handleBatchPrintItems(order) {
       const selections = this.selectedItems[order._id] || [];
       if (selections.length === 0) return;
       this.printData = selections.map(item => {
@@ -875,25 +893,33 @@ export default {
               .print-main-title { font-size: 26px; font-weight: 800; letter-spacing: 5px; margin: 0 0 15px 0; }
               .print-top-info-grid { display: grid; grid-template-columns: 1.2fr 0.8fr 0.8fr 1.2fr; border: 1px solid #000; text-align: left; }
               .info-cell { padding: 6px 8px; border: 0.5px solid #000; font-size: 13px; }
-
+              .price-val { color: #d00; font-weight: bold; font-size: 15px; }
+              .print-section-header { font-size: 16px; font-weight: bold; margin: 15px 0 10px 0; padding-left: 10px; border-left: 6px solid #000; }
               .print-item-card { border: 2px solid #000; margin-bottom: 15px; border-radius: 4px; overflow: hidden; background: #fff; }
               .card-title-row { background: #f2f2f2; padding: 8px 15px; border-bottom: 1px solid #000; display: flex; align-items: center; gap: 15px; }
               .item-no { background: #000; color: #fff; padding: 2px 10px; border-radius: 3px; font-weight: bold; }
               .item-name { font-weight: 900; font-size: 16px; flex: 1; }
-
-              /* 表格样式 */
-              .card-main-body-table { padding: 0; }
-              .print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-              .print-table th, .print-table td { border: 1px solid #000; padding: 10px 5px; text-align: center; font-size: 14px; }
-              .print-table th { background: #fafafa; font-weight: bold; }
-
+              .card-main-body { display: flex; border-top: 1px solid #000; width: 100%; }
+              .body-column { padding: 12px; border-right: 1px solid #000; }
+              .body-column:last-child { border-right: none; }
+              .col-30 { width: 30%; }
+              .col-45 { width: 45%; }
+              .col-25 { width: 25%; }
+              .field-row { display: flex; margin-bottom: 6px; align-items: flex-start; font-size: 13px; }
+              .f-label { font-weight: bold; color: #444; width: 80px; flex-shrink: 0; }
               .highlight-red { color: #d00; font-weight: bold; }
+              .address-row { background: #fff9f9; padding: 5px; border: 1px dashed #fbb; border-radius: 3px; margin-top: 5px; }
+              .media-center { display: flex; flex-direction: column; align-items: center; justify-content: space-around; gap: 10px; }
+              .qr-box { text-align: center; width: 100%; }
+              .qr-label { font-size: 11px; font-weight: bold; margin-bottom: 4px; border-bottom: 1px solid #ddd; display: inline-block; padding: 0 5px; }
+              .img-wrapper { border: 1px solid #eee; width: 100px; height: 100px; margin: 0 auto; display: flex; align-items: center; justify-content: center; background: #fafafa; }
+              .img-wrapper img { max-width: 100%; max-height: 100%; display: block; }
               .print-remark-area { border: 1px solid #000; padding: 10px; margin-top: 20px; font-size: 14px; background: #fff; }
               @media print {
                 @page { size: auto; margin: 10mm; }
                 .print-page-wrapper { border: none; margin: 0; height: auto; page-break-after: always !important; -webkit-print-color-adjust: exact; }
                 .card-title-row { background-color: #f2f2f2 !important; }
-                .print-table th { background-color: #fafafa !important; }
+                .address-row { background-color: #fff9f9 !important; }
               }
             </style>
           </head>
@@ -921,7 +947,7 @@ export default {
   box-sizing: border-box;
   width: 100%;
   background: #fcfdfe;
-  min-height: 200px;
+  min-height: 200px; /* 保证有一个最小高度显示内容 */
 }
 
 /* vxe-table 内部滚动条样式修正 */
@@ -958,20 +984,24 @@ export default {
 .custom-radio.checked { border-color: #409EFF; background: #409EFF; }
 .custom-radio.checked::after { content: ""; width: 6px; height: 6px; background: #fff; border-radius: 50%; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 
-/* 打印预览容器样式 */
+/* 打印预览样式 */
 .print-page-wrapper { background: #fff; padding: 20px; color: #333; }
 .print-header-container { text-align: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 15px; }
 .print-main-title { font-size: 22px; margin-bottom: 10px; }
 .print-top-info-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid #000; }
 .info-cell { padding: 5px; border: 0.5px solid #000; font-size: 12px; }
-.print-item-card { border: 1px solid #000; margin-bottom: 10px; border-radius: 4px; overflow: hidden; }
+.print-item-card { border: 1px solid #000; margin-bottom: 10px; border-radius: 4px; }
 .card-title-row { background: #eee; padding: 5px 10px; display: flex; align-items: center; border-bottom: 1px solid #000; }
 .item-name { font-weight: bold; margin-left: 10px; }
-
-/* 预览态表格 */
-.card-main-body-table { padding: 0; }
-.print-table { width: 100%; border-collapse: collapse; }
-.print-table th, .print-table td { border: 1px solid #000; padding: 8px 4px; text-align: center; font-size: 12px; }
-
+.card-main-body { display: flex; }
+.body-column { padding: 8px; border-right: 1px solid #000; }
+.col-30 { width: 30%; }
+.col-45 { width: 45%; }
+.col-25 { width: 25%; border-right: none; }
+.field-row { display: flex; font-size: 12px; margin-bottom: 3px; }
+.f-label { font-weight: bold; width: 70px; }
+.media-center { display: flex; flex-direction: column; align-items: center; justify-content: space-around; }
+.img-wrapper { border: 1px solid #eee; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; }
+.img-wrapper img { max-width: 100%; max-height: 100%; }
 .print-remark-area { border: 1px solid #000; padding: 8px; font-size: 12px; margin-top: 10px; }
 </style>
