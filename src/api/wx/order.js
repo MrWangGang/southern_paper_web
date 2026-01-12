@@ -56,3 +56,39 @@ export function exportOrder(query) {
     params: query
   })
 }
+
+// 获取订单打印次数
+export function getPrintOrderCount(orderNo) {
+  return request({
+    url: '/order/getPrintOrderCount', // 去掉尾部的 + orderNo
+    method: 'get',
+    params: { orderNo } // 使用 params 传参，axios 会自动转为 ?orderNo=xxx
+  })
+}
+
+// 获取发货明细打印次数
+export function getPrintDeliveryCount(deliveryId) {
+  return request({
+    url: '/order/getPrintDeliveryCount', // 去掉尾部的 + deliveryId
+    method: 'get',
+    params: { deliveryId } // 使用 params 传参
+  })
+}
+
+// 增加订单打印计数 (保持不变，因为后端是用 req.body)
+export function countPrintOrder(orderNo) {
+  return request({
+    url: '/order/countPrintOrder',
+    method: 'post',
+    data: { orderNo }
+  })
+}
+
+// 增加发货明细打印计数 (保持不变)
+export function countPrintDelivery(deliveryId) {
+  return request({
+    url: '/order/countPrintDelivery',
+    method: 'post',
+    data: { deliveryId }
+  })
+}

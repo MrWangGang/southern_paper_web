@@ -19,13 +19,6 @@
           <el-input v-model="queryParams.company" placeholder="公司名称" clearable @keyup.enter.native="handleQuery" />
         </el-form-item>
 
-        <el-form-item label="发货仓库">
-          <el-select v-model="queryParams.warehouse" placeholder="选择仓库" clearable style="width: 140px;">
-            <el-option label="湛江仓" value="湛江仓" />
-            <el-option label="直调仓" value="直调仓" />
-          </el-select>
-        </el-form-item>
-
         <el-form-item label="订单状态">
           <el-select v-model="queryParams.orderStatus" placeholder="支持多选" multiple collapse-tags clearable style="width: 200px;">
             <el-option label="待发货" value="待发货" />
@@ -372,10 +365,16 @@
     </el-card>
 
     <el-dialog title="打印预览" :visible.sync="printVisible" width="1050px" append-to-body>
-      <div id="printArea">
+      <div id="printArea" v-loading="printCountLoading">
         <div v-for="(order, index) in printData" :key="index" class="print-page-wrapper">
-          <div class="print-header-container">
+
+          <div class="print-header-container" style="position: relative;">
+            <div style="position: absolute; left: 0; top: 0; font-size: 12px; color: #666;">
+              打印次数：{{ printType === 'order' ? (order.printCount || 0) : (order.orderItems[0].printCount || 0) }}
+            </div>
+
             <h1 class="print-main-title">订 单 明 细</h1>
+
             <div class="print-top-info-grid">
               <div class="info-cell"><strong>订单编号：</strong>{{ order.orderNo }}</div>
               <div class="info-cell"><strong>客户公司：</strong>{{ order.company }}</div>
@@ -405,17 +404,15 @@
                 </thead>
                 <tbody>
                 <tr>
-                  <td width="180px">
-                    {{ item.name }}{{ item.base_weight }}g
-                  </td>
-                  <td  width="100px">{{ item.service }}</td>
+                  <td width="180px">{{ item.name }}{{ item.base_weight }}g</td>
+                  <td width="100px">{{ item.service }}</td>
                   <td width="100px">
                     {{ getModeLabel(item) }}
                     <span v-if="item.service === '来料加工' && item.isDouble" style="color:red">(一开二)</span>
                   </td>
                   <td width="100px">{{ formatEmpty(item.w) }}</td>
-                  <td  width="100px">{{ (item.h && item.h !== '--') ? item.h: '--' }}</td>
-                  <td width="100px"class="highlight-red">{{ item.qty }} {{ getUnit(item) }}</td>
+                  <td width="100px">{{ (item.h && item.h !== '--') ? item.h: '--' }}</td>
+                  <td width="100px" class="highlight-red">{{ item.qty }} {{ getUnit(item) }}</td>
                   <td width="100px">{{ item.weight || '--' }}</td>
                 </tr>
                 <tr>
@@ -563,7 +560,10 @@
 </template>
 
 <script>
-import { getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups, exportOrder } from "@/api/wx/order";
+import {
+  getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups, exportOrder,
+  getPrintOrderCount, getPrintDeliveryCount, countPrintOrder, countPrintDelivery
+} from "@/api/wx/order";
 import { uploadToCloud } from "@/api/wx/common";
 import QRCode from "qrcode";
 import dayjs from 'dayjs';
@@ -603,7 +603,10 @@ export default {
         deliveryFileImg: '', deliveryFileQrImg: ''
       },
       printVisible: false,
-      printData: []
+      printData: [],
+      // 新增状态
+      printType: 'order', // 'order' 或 'delivery'
+      printCountLoading: false
     };
   },
   computed: {
@@ -658,6 +661,17 @@ export default {
     },
     getList() {
       this.loading = true;
+
+      // 从路由获取 type 参数
+      const type = this.$route.query.type;
+
+      // 根据 type 设置仓库名称
+      if (type === '1' || type === 1) {
+        this.queryParams.warehouse = '直调仓';
+      } else if (type === '2' || type === 2) {
+        this.queryParams.warehouse = '湛江仓';
+      }
+
       getOrderList(this.queryParams).then(res => {
         this.orderList = res.data.records;
         this.total = res.data.total;
@@ -842,31 +856,60 @@ export default {
         this.getList();
       });
     },
-    handlePrint(row) {
-      this.printData = [JSON.parse(JSON.stringify(row))];
+    async handlePrint(row) {
+      this.printType = 'order';
+      this.printCountLoading = true;
+      const orderCopy = JSON.parse(JSON.stringify(row));
+      try {
+        const res = await getPrintOrderCount(orderCopy.orderNo);
+        orderCopy.printCount = res.data || 0;
+      } catch (e) { console.error(e); }
+      this.printData = [orderCopy];
       this.printVisible = true;
+      this.printCountLoading = false;
     },
-    handlePrintSingleItem(order, item, index) {
+    async handlePrintSingleItem(order, item, index) {
+      this.printType = 'delivery';
+      this.printCountLoading = true;
       const newOrder = JSON.parse(JSON.stringify(order));
       const itemCopy = JSON.parse(JSON.stringify(item));
-      // 修正：单个打印时，使用外部点击的索引 + 1
       itemCopy.printIdx = index + 1;
+
+      try {
+        if (itemCopy.deliveryInfo && itemCopy.deliveryInfo.deliveryId) {
+          const res = await getPrintDeliveryCount(itemCopy.deliveryInfo.deliveryId);
+          itemCopy.printCount = res.data || 0;
+        }
+      } catch (e) { console.error(e); }
+
       newOrder.orderItems = [itemCopy];
       this.printData = [newOrder];
       this.printVisible = true;
+      this.printCountLoading = false;
     },
-    handlePrintBatchItems(order) {
+    async handlePrintBatchItems(order) {
+      this.printType = 'delivery';
+      this.printCountLoading = true;
       const selections = this.selectedItems[order._id] || [];
       if (selections.length === 0) return;
-      this.printData = selections.map((item, index) => {
+
+      const promises = selections.map(async (item, index) => {
         const o = JSON.parse(JSON.stringify(order));
         const itemCopy = JSON.parse(JSON.stringify(item));
-        // 给item注入打印时的全局序号
         itemCopy.printIdx = index + 1;
+        try {
+          if (itemCopy.deliveryInfo && itemCopy.deliveryInfo.deliveryId) {
+            const res = await getPrintDeliveryCount(itemCopy.deliveryInfo.deliveryId);
+            itemCopy.printCount = res.data || 0;
+          }
+        } catch (e) { console.error(e); }
         o.orderItems = [itemCopy];
         return o;
       });
+
+      this.printData = await Promise.all(promises);
       this.printVisible = true;
+      this.printCountLoading = false;
     },
     doPrint() {
       const printContent = document.getElementById('printArea').innerHTML;
@@ -914,11 +957,39 @@ export default {
       windowPrint.document.close();
       windowPrint.onload = () => {
         windowPrint.focus();
-        setTimeout(() => { windowPrint.print(); windowPrint.close(); }, 300);
+        setTimeout(() => {
+          windowPrint.print();
+          windowPrint.close();
+          // 打印完成后执行计数
+          this.afterPrintAction();
+        }, 300);
       };
       setTimeout(() => {
-        if (windowPrint.document.readyState === 'complete') { windowPrint.print(); windowPrint.close(); }
+        if (windowPrint.document.readyState === 'complete') {
+          windowPrint.print();
+          windowPrint.close();
+          this.afterPrintAction();
+        }
       }, 1000);
+    },
+    async afterPrintAction() {
+      // 1. 立即清空/标记，防止重入
+      if (this.isProcessingCount) return;
+      this.isProcessingCount = true;
+
+      try {
+        if (this.printType === 'order') {
+          await countPrintOrder(this.printData[0].orderNo);
+        } else if (this.printType === 'delivery') {
+          // 批量打印时，一次性把所有的 ID 发给后端，或者保证这里只跑一次
+          const deliveryIds = this.printData.map(o => o.orderItems[0].deliveryInfo.deliveryId);
+          // 建议后端写一个批量计数的接口，或者在这里用 Promise.all
+          await Promise.all(deliveryIds.map(id => countPrintDelivery(id)));
+        }
+      } finally {
+        this.isProcessingCount = false;
+        this.printVisible = false; // 打印完关闭预览
+      }
     }
   }
 };
