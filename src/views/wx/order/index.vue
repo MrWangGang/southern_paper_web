@@ -661,22 +661,12 @@
 
         </el-form>
       </div>
-
-
-
-
-
-
       <div slot="footer">
         <el-button @click="editVisible = false">取 消</el-button>
         <el-button type="primary" @click="confirmEdit">确认修改</el-button>
       </div>
-
-
     </el-dialog>
   </div>
-
-
 </template>
 
 <script>
