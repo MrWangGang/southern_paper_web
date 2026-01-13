@@ -129,7 +129,7 @@
                             type="warning"
                             size="mini"
                             icon="el-icon-edit"
-                            :disabled="row.deliveryInfo.deliveryStatus !== '待发货'"
+                            :disabled="row.deliveryInfo.deliveryStatus !== '待发货' && isRowSelected(props.row._id, row)"
                             @click="handleEditProduct(props.row, row, rowIndex)"
                           >修改</el-button>
                           <el-button
@@ -425,14 +425,26 @@
                   <td width="100px">{{ item.weight || '--' }}</td>
                 </tr>
                 <tr>
-                  <td colspan="6" style="text-align: right; font-weight: bold; padding-right: 20px;">合计重量：</td>
-                  <td style="font-weight: bold; color: #67C23A;">{{ item.weight || '--' }}</td>
+                  <tr v-if="printType !== 'order'">
+                    <td colspan="6" style="text-align: right; font-weight: bold; padding-right: 20px;">合计重量：</td>
+                    <td style="font-weight: bold; color: #67C23A;">{{ item.weight || '--' }}</td>
+                  </tr>
                 </tr>
                 </tbody>
               </table>
             </div>
           </div>
-
+          <div v-if="printType === 'order'" class="print-total-table-wrapper">
+            <table class="print-table" style="border-top: none;">
+              <tbody>
+              <tr>
+                <td colspan="7" style="text-align: right; font-weight: bold; background: #fafafa; padding-right: 20px;">
+                  合计重量：<span style="font-size: 16px; color: #67C23A; margin-left: 10px;">{{ order.allWeight }} 吨</span>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
           <div class="print-remark-area">
             <strong>备注：</strong>{{ order.remark || '无备注' }}
           </div>
