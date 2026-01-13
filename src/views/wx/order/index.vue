@@ -579,8 +579,23 @@
     <el-dialog title="修改商品属性" :visible.sync="editVisible" width="550px" append-to-body>
       <div v-if="editForm">
         <el-form label-width="110px" size="small">
+
           <el-form-item label="当前商品">
-            <span style="font-weight: bold;">{{ editForm.name }} ({{ editForm.base_weight }}g)</span>
+            <div class="product-info-display" @click="openProductSelector">
+              <div v-if="editForm.productImg" class="img-box">
+                <el-image :src="editForm.productImg" fit="cover" class="p-img"></el-image>
+              </div>
+              <div v-else class="name-avatar-mini" :style="{backgroundColor: getBgColor(editForm.name)}">
+                {{ editForm.name ? editForm.name.substring(0,1) : '商' }}
+              </div>
+
+              <div class="info-text">
+                <div class="p-name">{{ editForm.name }}{{ editForm.base_weight }}g</div>
+                <div class="p-spec">╮(╯▽╰)╭</div>
+                <div class="p-spec">点击可以更换商品</div>
+              </div>
+              <div class="change-tag"><i class="el-icon-refresh"></i> 更换</div>
+            </div>
           </el-form-item>
 
           <el-form-item label="加工服务">
@@ -666,6 +681,96 @@
         <el-button type="primary" @click="confirmEdit">确认修改</el-button>
       </div>
     </el-dialog>
+
+    <el-dialog title="选择商品" :visible.sync="selectorOpen" width="1000px" append-to-body custom-class="mall-selector-dialog">
+      <div class="selector-container" style="height: 550px; display: flex;">
+
+        <div class="aside-menu" style="width: 200px; background: #f8f9fb; border-right: 1px solid #eee; overflow-y: auto;">
+          <el-menu :default-active="selectorQuery.category" @select="handleCategoryChange" style="border:none; background:transparent;">
+            <el-menu-item index="ALL">
+              <i class="el-icon-menu"></i> 全部品类
+            </el-menu-item>
+            <el-menu-item v-for="item in categoryOptions" :key="item" :index="item">
+              <i class="el-icon-collection-tag"></i> {{ item }}
+            </el-menu-item>
+          </el-menu>
+        </div>
+
+        <div class="main-content" style="flex: 1; padding: 15px; display: flex; flex-direction: column;">
+          <div style="margin-bottom: 15px;">
+            <el-input
+              v-model="selectorQuery.name"
+              placeholder="搜索商品名称"
+              size="small"
+              clearable
+              @keyup.enter.native="getSelectorList"
+              style="width: 300px;"
+            >
+              <el-button slot="append" icon="el-icon-search" @click="getSelectorList"></el-button>
+            </el-input>
+          </div>
+
+          <el-table
+            v-loading="selectorLoading"
+            :data="selectorList"
+            height="400"
+            border
+            stripe
+            size="mini"
+            @row-click="selectAndClose"
+          >
+            <el-table-column label="预览" align="center" width="60">
+              <template slot-scope="scope">
+                <el-avatar
+                  shape="square"
+                  :size="30"
+                  :src="scope.row.productImg"
+                  style="background-color: transparent;"
+                >
+                  <div
+                    v-if="!scope.row.productImg"
+                    :style="{
+                      backgroundColor: getBgColor(scope.row.name),
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }"
+                  >
+                    {{ scope.row.name.substring(0,1) }}
+                  </div>
+                </el-avatar>
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="name" label="商品名称" show-overflow-tooltip />
+            <el-table-column prop="category" label="分类" align="center" />
+            <el-table-column prop="base_weight" label="克重(g)" align="center" />
+
+            <el-table-column prop="unit_weight" label="系数" align="center">
+              <template slot-scope="scope">
+                <el-tag size="mini" type="info">{{ scope.row.unit_weight || 0 }}</el-tag>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="操作" align="center" width="80">
+              <template><el-button type="text">选择</el-button></template>
+            </el-table-column>
+          </el-table>
+
+          <div style="margin-top: auto; padding-top: 10px;">
+            <pagination
+              v-show="selectorTotal > 0"
+              :total="selectorTotal"
+              :page.sync="selectorQuery.pageNum"
+              :limit.sync="selectorQuery.pageSize"
+              @pagination="getSelectorList"
+            />
+          </div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -679,7 +784,7 @@ import QRCode from "qrcode";
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import FileSaver from 'file-saver';
-
+import { listProduct,getProductCategories } from "@/api/wx/product";
 export default {
   data() {
     return {
@@ -727,10 +832,28 @@ export default {
           receiverPhone: '',
           address: ''
         },
-      }
+      },
+      selectorOpen: false,      // 控制更换商品弹窗的显示
+      selectorLoading: false,   // 选择器表格加载状态
+      selectorList: [],         // 选择器中的商品数据
+      selectorTotal: 0,         // 商品总数
+      selectorQuery: {          // 选择器的查询参数
+        pageNum: 1,
+        pageSize: 10,
+        name: '',
+        category: 'ALL'
+      },
+      categoryOptions: [],   // 如果你之前没定义分类列表，请取消注释
     };
   },
   computed: {
+    /** 获取分类列表 */
+    getCategoryList() {
+      getProductCategories().then(res => {
+        // 假设返回的是字符串数组 ['白卡纸', '铜版纸', ...]
+        this.categoryOptions = res.data;
+      });
+    },
     paginatedGroups() {
       const start = (this.groupCurrentPage - 1) * this.groupPageSize;
       const end = start + this.groupPageSize;
@@ -1355,6 +1478,98 @@ export default {
         this.isProcessingCount = false;
         this.printVisible = false; // 打印完关闭预览
       }
+    },
+    // 1. 打开商品选择弹窗
+    openProductSelector() {
+      this.selectorOpen = true;
+      this.selectorQuery.name = ''; // 清空之前的搜索词
+      this.selectorQuery.category = 'ALL'; // 重置分类
+      this.selectorQuery.pageNum = 1;
+      // 关键：打开弹窗时立即调用获取数据的方法
+      this.getSelectorList();
+      this.getCategoryList();
+
+    },
+    /** 获取分类列表 */
+    getCategoryList() {
+      // 检查这个接口是否成功引入
+      getProductCategories().then(res => {
+        // 关键：根据你之前的接口风格，res 后面可能需要 .data
+        // 请在浏览器控制台看看 console.log(res)，确认分类是在 res.data 还是 res.data.data 里
+        console.log("分类接口返回：", res);
+
+        if (res.code === 200) {
+          // 如果返回的是 ['白卡纸', '铜版纸'] 这种数组
+          this.categoryOptions = res.data;
+        }
+      }).catch(err => {
+        console.error("分类加载失败", err);
+      });
+    },
+    // 2. 获取选择器列表数据 (对接你的 listProduct 接口)
+    getSelectorList() {
+      this.selectorLoading = true;
+      const params = {
+        pageNum: this.selectorQuery.pageNum,
+        pageSize: this.selectorQuery.pageSize,
+        name: this.selectorQuery.name || undefined,
+        category: this.selectorQuery.category === 'ALL' ? undefined : this.selectorQuery.category
+      };
+
+      listProduct(params).then(response => {
+        // 注意：根据你的 JSON 结构，这里要从 response.data 中取值
+        if (response.code === 200) {
+          this.selectorList = response.data.records; // 对应 JSON 里的 records
+          this.selectorTotal = response.data.total;   // 对应 JSON 里的 total
+        } else {
+          this.$message.error(response.msg || "请求失败");
+        }
+        this.selectorLoading = false;
+      }).catch(err => {
+        console.error("加载商品列表失败:", err);
+        this.selectorLoading = false;
+      });
+    },
+
+    // 3. 切换左侧大类
+    handleCategoryChange(categoryName) {
+      this.selectorQuery.category = categoryName;
+      this.selectorQuery.pageNum = 1; // 切换分类重置回第一页
+      this.getSelectorList();
+    },
+
+    // 4. 确认选择商品并回填到编辑表单
+    selectAndClose(row) {
+      if (!row) return;
+
+      // 使用 $set 确保响应式更新
+      this.$set(this.editForm, 'name', row.name);
+      this.$set(this.editForm, 'productImg', row.productImg);
+      this.$set(this.editForm, 'base_weight', row.base_weight);
+      this.$set(this.editForm, 'category', row.category);
+      this.$set(this.editForm, 'unit_weight', row.unit_weight);
+
+      // 如果你的 editForm 需要记录选中的商品 ID
+      this.$set(this.editForm, 'productId', row._id);
+
+      if (typeof this.handleCalc === 'function') {
+        this.handleCalc();
+      }
+
+      this.selectorOpen = false;
+      this.$message.success(`已关联：${row.name}`);
+    },
+
+    // 5. 获取背景色的辅助函数 (保持和主界面一致)
+    getBgColor(name) {
+      if (!name) return '#409EFF';
+      const colors = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#66b1ff', '#85ce61', '#ebb563', '#f78989'];
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const index = Math.abs(hash) % colors.length;
+      return colors[index];
     }
   }
 };
@@ -1421,4 +1636,166 @@ export default {
 .print-table th, .print-table td { border: 1px solid #000; padding: 8px 4px; text-align: center; font-size: 12px; }
 
 .print-remark-area { border: 1px solid #000; padding: 8px; font-size: 12px; margin-top: 10px; }
+.product-info-display {
+  display: flex;
+  align-items: center;
+  background: #f8f9fb;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.product-info-display:hover {
+  border-color: #409eff;
+  background: #f0f7ff;
+}
+.img-box, .p-img {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.name-avatar-mini {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.info-text {
+  margin-left: 12px;
+  line-height: 1.4;
+  flex: 1;
+}
+.p-name {
+  font-weight: bold;
+  color: #303133;
+  font-size: 14px;
+}
+.p-spec {
+  font-size: 12px;
+  color: #909399;
+}
+.change-tag {
+  font-size: 12px;
+  color: #409eff;
+  background: #fff;
+  border: 1px solid #409eff;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+/* 弹窗整体容器 */
+.selector-container {
+  display: flex;
+  flex-direction: row;
+  height: 550px; /* 固定高度，内部滚动 */
+  border-top: 1px solid #f0f0f0;
+}
+
+/* 左侧分类导航栏 */
+.aside-menu {
+  width: 200px;
+  background-color: #f8f9fb;
+  border-right: 1px solid #ebeef5;
+  overflow-y: auto;
+
+  .el-menu {
+    border-right: none;
+    background: transparent;
+
+    .el-menu-item {
+      height: 50px;
+      line-height: 50px;
+      font-size: 14px;
+      color: #606266;
+      transition: all 0.2s;
+
+      i {
+        margin-right: 8px;
+        font-size: 16px;
+      }
+
+      &:hover {
+        background-color: #ecf5ff;
+      }
+
+      &.is-active {
+        background-color: #fff !important;
+        color: #409eff;
+        font-weight: bold;
+        border-left: 4px solid #409eff;
+      }
+    }
+  }
+}
+
+/* 右侧内容主区域 */
+.main-content {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  background-color: #fff;
+  overflow: hidden;
+
+  /* 搜索栏样式 */
+  .search-bar {
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* 表格内图片与首字头像 */
+  .table-p-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    font-weight: bold;
+    font-size: 14px;
+    margin: 0 auto;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  /* 分页容器居底 */
+  .pagination-container {
+    margin-top: auto;
+    padding-top: 15px;
+    text-align: right;
+  }
+}
+
+/* 覆盖 ElementUI 默认弹框内边距，让侧边栏顶到边缘 */
+::v-deep .mall-selector-dialog {
+  .el-dialog__body {
+    padding: 0 !important;
+  }
+  .el-dialog__header {
+    padding: 15px 20px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+}
+
+/* 自定义表格滚动条样式（可选） */
+.aside-menu::-webkit-scrollbar {
+  width: 5px;
+}
+.aside-menu::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 10px;
+}
+
+/* 鼠标悬停表格行变手型 */
+::v-deep .el-table__row {
+  cursor: pointer;
+}
 </style>
