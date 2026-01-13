@@ -113,10 +113,9 @@
               >
                 <vxe-column type="checkbox" width="50" align="center" fixed="left"></vxe-column>
 
-                <vxe-column title="操作" width="220" align="center" fixed="left">
+                <vxe-column title="操作" width="320" align="center" fixed="left">
                   <template #default="{ row, rowIndex }">
                     <div style="display:flex; justify-content:center; align-items:center; gap:5px">
-
                       <template v-if="['草稿', '已关闭', '已完成'].includes(props.row.orderStatus) || (row.deliveryInfo && row.deliveryInfo.deliveryStatus === '已收货')">
                         <span style="color: #67C23A; font-size: 12px; margin-right: 5px;">
                           <i class="el-icon-circle-close"></i> 禁止操作
@@ -124,14 +123,22 @@
                       </template>
 
                       <template v-else-if="row.deliveryInfo">
+
                         <template v-if="row.deliveryInfo.deliveryStatus === '待发货'">
+                          <el-button
+                            type="warning"
+                            size="mini"
+                            icon="el-icon-edit"
+                            :disabled="row.deliveryInfo.deliveryStatus !== '待发货'"
+                            @click="handleEditProduct(props.row, row, rowIndex)"
+                          >修改</el-button>
                           <el-button
                             type="primary"
                             size="mini"
+                            icon="el-icon-set-up"
                             :disabled="isRowSelected(props.row._id, row)"
                             @click="handleOpenShip(props.row, row)"
                           >发货</el-button>
-                          <el-button size="mini" disabled>撤回</el-button>
                         </template>
 
                         <template v-else-if="row.deliveryInfo.deliveryStatus === '已发货'">
@@ -139,12 +146,14 @@
                             type="warning"
                             size="mini"
                             :disabled="isRowSelected(props.row._id, row)"
+                            icon="el-icon-setting"
                             @click="handleOpenShip(props.row, row)"
                           >重发</el-button>
                           <el-button
                             type="success"
                             size="mini"
                             :disabled="isRowSelected(props.row._id, row)"
+                            icon="el-icon-delete"
                             @click="handleCancelShip(props.row, row)"
                           >撤回</el-button>
                         </template>
@@ -555,14 +564,113 @@
         <el-button type="primary" :disabled="!shipForm.deliveryFileImg" @click="submitShipAction">确认发货</el-button>
       </div>
     </el-dialog>
+    <el-dialog title="修改商品属性" :visible.sync="editVisible" width="550px" append-to-body>
+      <div v-if="editForm">
+        <el-form label-width="110px" size="small">
+          <el-form-item label="当前商品">
+            <span style="font-weight: bold;">{{ editForm.name }} ({{ editForm.base_weight }}g)</span>
+          </el-form-item>
 
+          <el-form-item label="加工服务">
+            <el-radio-group v-model="editForm.service" @change="onServiceChange">
+              <el-radio-button v-for="s in services" :key="s" :label="s">{{ s }}</el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+
+          <el-form-item label="规格类型" v-if="['卷筒', '整卷切', '来料加工'].includes(editForm.service)">
+            <el-radio-group v-model="editForm.isStandard" @change="onSpecTypeChange">
+              <el-radio :label="true">{{ editForm.service === '来料加工' ? '张数' : '件数' }}</el-radio>
+              <el-radio :label="false">{{ editForm.service === '来料加工' ? '件数' : '吨数' }}</el-radio>
+            </el-radio-group>
+          </el-form-item>
+
+          <el-form-item label="幅宽(mm)">
+            <el-input type="number" v-model="editForm.w" @input="handleCalc" placeholder="请输入"></el-input>
+          </el-form-item>
+
+          <el-form-item v-if="editForm.service !== '卷筒'" label="长度(mm)">
+            <el-input type="number" v-model="editForm.h" @input="handleCalc" placeholder="请输入"></el-input>
+          </el-form-item>
+
+          <el-form-item v-if="!((editForm.service === '卷筒' || editForm.service === '整卷切') && !editForm.isStandard)">
+            <span slot="label">数量({{ getQtyUnitLabel }})</span>
+            <el-input type="number" v-model="editForm.qty" @input="handleCalc" placeholder="请输入"></el-input>
+          </el-form-item>
+
+          <el-form-item label="重量(吨)">
+            <el-input
+              type="number"
+              v-model="editForm.weight"
+              :disabled="!((editForm.service === '卷筒' || editForm.service === '整卷切') && !editForm.isStandard)"
+              @input="handleCalc"
+              placeholder="计算结果"
+            ></el-input>
+          </el-form-item>
+
+          <el-form-item label="一开二" v-if="editForm.service === '来料加工'">
+            <el-switch v-model="editForm.isDouble" @change="handleCalc"></el-switch>
+          </el-form-item>
+
+          <el-form-item label="单价(元/吨)">
+            <el-input type="number" v-model="editForm.unit_price" @input="handleCalc" placeholder="请输入"></el-input>
+          </el-form-item>
+
+          <div style="background: #fdf6ec; padding: 20px; border-radius: 8px; text-align: right; border: 1px solid #faecd8; margin-top: 10px;">
+            <span style="color: #666;">金额小计：</span>
+            <span style="font-size: 26px; font-weight: bold; color: #F56C6C;">￥{{ editForm.total }}</span>
+          </div>
+
+          <el-divider content-position="left">配送信息</el-divider>
+
+          <el-form-item label="配送方式">
+            <el-radio-group v-model="editForm.isSelfPick" @change="handleDeliveryTypeChange">
+              <el-radio :label="false">送货上门</el-radio>
+              <el-radio :label="true">仓库自提</el-radio>
+            </el-radio-group>
+          </el-form-item>
+
+          <div v-show="!editForm.isSelfPick">
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="收货人">
+                  <el-input v-model="editForm.deliveryInfo.receiverName" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="手机号">
+                  <el-input v-model="editForm.deliveryInfo.receiverPhone" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-form-item label="收货地址">
+              <el-input type="textarea" v-model="editForm.deliveryInfo.address" />
+            </el-form-item>
+          </div>
+
+        </el-form>
+      </div>
+
+
+
+
+
+
+      <div slot="footer">
+        <el-button @click="editVisible = false">取 消</el-button>
+        <el-button type="primary" @click="confirmEdit">确认修改</el-button>
+      </div>
+
+
+    </el-dialog>
   </div>
+
+
 </template>
 
 <script>
 import {
   getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups, exportOrder,
-  getPrintOrderCount, getPrintDeliveryCount, countPrintOrder, countPrintDelivery
+  getPrintOrderCount, getPrintDeliveryCount, countPrintOrder, countPrintDelivery,updateOrderItems
 } from "@/api/wx/order";
 import { uploadToCloud } from "@/api/wx/common";
 import QRCode from "qrcode";
@@ -606,7 +714,18 @@ export default {
       printData: [],
       // 新增状态
       printType: 'order', // 'order' 或 'delivery'
-      printCountLoading: false
+      printCountLoading: false,
+      editVisible: false,
+      services: ['卷筒', '整卷切', '零切', '一开二', '来料加工'],
+      editingInfo: { orderId: '', itemIndex: -1 },
+      editForm: {
+        isSelfPick: false,
+        deliveryInfo: {
+          receiverName: '',
+          receiverPhone: '',
+          address: ''
+        },
+      }
     };
   },
   computed: {
@@ -614,12 +733,256 @@ export default {
       const start = (this.groupCurrentPage - 1) * this.groupPageSize;
       const end = start + this.groupPageSize;
       return this.existingGroups.slice(start, end);
+    },
+    // 实时切换单位文字
+    getQtyUnitLabel() {
+      if (!this.editForm) return '';
+      const { service, isStandard } = this.editForm;
+      if (service === '零切' || service === '一开二') return '张';
+      if (service === '来料加工') return isStandard ? '张' : '件';
+      return isStandard ? '件' : '张';
     }
   },
   created() {
     this.getList();
   },
   methods: {
+// handleEditProduct 负责“加载”原数据
+    handleEditProduct(order, item, index) {
+      // 1. 记录编辑信息（这里已经存了 orderId）
+      this.editingInfo = {
+        orderId: order._id,
+        itemIndex: index
+      };
+
+      // 2. 深拷贝原始数据
+      const baseItem = JSON.parse(JSON.stringify(item));
+
+      // 3. 构造完整对象
+      const preparedForm = {
+        ...baseItem,
+        // 【新增】显式保存订单ID在顶层，方便后续提交使用
+        orderId: order._id,
+
+        isSelfPick: baseItem.isSelfPick === true,
+
+        // 配送信息初始化
+        deliveryInfo: baseItem.deliveryInfo ? {
+          ...baseItem.deliveryInfo,
+          // 【新增】确保 deliveryId 被拷贝进来（即使它是空字符或null）
+          deliveryId: baseItem.deliveryInfo.deliveryId || ''
+        } : {
+          deliveryId: '', // 初始主键为空
+          receiverName: '',
+          receiverPhone: '',
+          address: '',
+          deliveryStatus: '待发货'
+        },
+
+        // 规格字段（根据你的逻辑保持原值或设为null）
+        w: baseItem.w || null,
+        h: baseItem.h || null,
+        qty: baseItem.qty || null,
+        total: baseItem.total || '0.00'
+      };
+
+      // 4. 赋值并打开弹窗
+      this.editForm = preparedForm;
+      this.editVisible = true;
+
+      console.log("初始化填充完成，检查主键:", {
+        orderId: this.editForm.orderId,
+        deliveryId: this.editForm.deliveryInfo.deliveryId
+      });
+    },
+
+    handleDeliveryTypeChange(val) {
+      const currentDeliveryId = this.editForm.deliveryInfo ? this.editForm.deliveryInfo.deliveryId : '';
+
+      if (val === true) {
+        // 切换到：仓库自提
+        this.$set(this.editForm, 'deliveryInfo', {
+          deliveryId: currentDeliveryId, // 保留主键
+          receiverName: '--',
+          receiverPhone: '--',
+          address: '仓库自提',
+          deliveryStatus: '待发货'
+        });
+      } else {
+        // 切换到：送货上门
+        this.$set(this.editForm, 'deliveryInfo', {
+          deliveryId: currentDeliveryId, // 保留主键
+          receiverName: '',
+          receiverPhone: '',
+          address: '',
+          deliveryStatus: '待发货'
+        });
+      }
+    },
+    // 2. 切换服务触发：完全清空数值
+    onServiceChange() {
+      this.editForm.isStandard = true;
+      this.editForm.isDouble = false;
+      this.resetAndCalc();
+    },
+
+    // 3. 切换模式（件数/张数/吨数）触发：完全清空数值
+    onSpecTypeChange() {
+      this.resetAndCalc();
+    },
+
+    // 内部辅助：重置并刷新
+    resetAndCalc() {
+      this.editForm.w = null;
+      this.editForm.h = null;
+      this.editForm.qty = null;
+      this.editForm.weight = null;
+      this.editForm.unit_price = null;
+      this.editForm.total = '0.00';
+      this.handleCalc();
+    },
+
+    /**
+     * 4. 核心计算函数：严格按照 index.js 第 238 行开始的逻辑
+     */
+    handleCalc() {
+      const f = this.editForm;
+      if (!f) return;
+
+      // 1. 严格按照小程序 index.js 168-175行的转换逻辑
+      const W = parseFloat(f.w || 0);
+      const H = parseFloat(f.h || 0);
+      const Q = parseFloat(f.qty || 0);
+      const G = parseFloat(f.base_weight || 0);
+      const X = parseFloat(f.unit_weight || 0);
+      const uPrice = parseFloat(f.unit_price || 0);
+
+      let resW = 0;
+      const s = f.service;
+
+      // 2. 计算逻辑（严格复刻 index.js 177-195行）
+      if (s === '卷筒' || s === '整卷切') {
+        if (f.isStandard) {
+          // 对应小程序 index.js 177行
+          resW = (W * Q * X) / 1000;
+        } else {
+          resW = parseFloat(f.weight || 0);
+        }
+      }
+      else if (s === '零切' || s === '一开二') {
+        // 对应小程序 index.js 185行：注意这里的括号嵌套顺序
+        // ((W/1000) * (H/1000) * (G/1000) * Q) / 1000
+        resW = ((W / 1000) * (H / 1000) * (G / 1000) * Q) / 1000;
+      }
+      else if (s === '来料加工') {
+        if (f.isStandard) {
+          resW = ((W / 1000) * (H / 1000) * (G / 1000) * Q) / 1000;
+        } else {
+          // 对应小程序 index.js 189行
+          resW = (W * X / 1000) * Q;
+        }
+      }
+
+      // 3. 赋值重量：小程序显示重量是 weightSum.toFixed(3)
+      const isManualMode = (s === '卷筒' || s === '整卷切') && !f.isStandard;
+      if (!isManualMode) {
+        // 小程序 updateCartStatus 里是用 toFixed(3)
+        f.weight = resW > 0 ? resW.toFixed(3) : '';
+      }
+
+      // 4. 【核心点】计算总价：严格复刻 index.js 200行
+      // 注意：小程序在算 total 时，是直接用 resW (原始浮点数) * uPrice，然后再 toFixed(2)
+      if (resW > 0 && uPrice > 0) {
+        // 这里不要先对 resW 取三位，要直接乘，然后对乘积进行 toFixed(2)
+        let total = (resW * uPrice).toFixed(2);
+        f.total = total;
+      } else {
+        f.total = '0.00';
+      }
+
+      this.$forceUpdate();
+    },
+
+
+    async confirmEdit() {
+      if (!this.editForm) return;
+
+      // 1. 明确提取所有字段（实现彻底平铺）
+      const {
+        orderId,
+        name,
+        qty,
+        base_weight,
+        unit_weight,
+        service,
+        unit_price,
+        weight,
+        total,
+        w,
+        h,
+        isDouble,
+        isSelfPick,
+        warehouse,
+        isStandard,
+        deliveryInfo // 这是一个对象，下面我们要把它里面的字段也提出来
+      } = this.editForm;
+
+      // 2. 提取收货明细中的主键和其他关键字段
+      const deliveryId = deliveryInfo ? deliveryInfo.deliveryId : '';
+      const receiverName = deliveryInfo ? deliveryInfo.receiverName : '';
+      const receiverPhone = deliveryInfo ? deliveryInfo.receiverPhone : '';
+      const address = deliveryInfo ? deliveryInfo.address : '';
+      const deliveryStatus = deliveryInfo ? deliveryInfo.deliveryStatus : '';
+
+      // 3. 校验关键主键
+      if (!orderId || !deliveryId) {
+        this.$message.error("提交失败：缺失关键主键 (orderId 或 deliveryId)");
+        return;
+      }
+
+      try {
+        this.$modal.loading("正在保存...");
+
+        // 4. 构造完全平铺的参数对象（明确传哪些）
+        const params = {
+          orderId,        // 订单主键
+          deliveryId,     // 配送主键（用于后端定位数组下标）
+          name,           // 产品名称
+          qty,            // 数量
+          base_weight,    // 克重
+          unit_weight,    // 换算系数
+          service,        // 加工服务
+          unit_price,     // 单价
+          weight,         // 重量
+          total,          // 总价
+          w,              // 宽
+          h,              // 高
+          isDouble,       // 是否双面
+          isSelfPick,     // 是否自提
+          warehouse,      // 仓库
+          isStandard,     // 是否标准
+          receiverName,   // 收货人（原属于 deliveryInfo）
+          receiverPhone,  // 电话（原属于 deliveryInfo）
+          address,        // 地址（原属于 deliveryInfo）
+          deliveryStatus  // 配送状态（原属于 deliveryInfo）
+        };
+
+        console.log("平铺后的最终提交参数:", params);
+
+        // 5. 调用 API
+        const res = await updateOrderItems(params);
+
+        this.$modal.closeLoading();
+        if (res.code === 200 || res.code === 0) {
+          this.$message.success('修改成功');
+          this.editVisible = false;
+          this.getList();
+        }
+      } catch (err) {
+        this.$modal.closeLoading();
+        console.error('提交异常:', err);
+      }
+    },
     handleDateChange(val) {
       if (val) { this.queryParams.startTime = val[0]; this.queryParams.endTime = val[1]; }
       else { this.queryParams.startTime = ''; this.queryParams.endTime = ''; }

@@ -92,3 +92,12 @@ export function countPrintDelivery(deliveryId) {
     data: { deliveryId }
   })
 }
+
+// 修改订单商品明细 (平铺提交 orderId, index, deliveryId 等)
+export function updateOrderItems(data) {
+  return request({
+    url: '/order/updateOrderItems',
+    method: 'post',
+    data: data // 这里的 data 就是平铺后的对象
+  })
+}
