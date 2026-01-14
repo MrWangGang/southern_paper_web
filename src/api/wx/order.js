@@ -101,3 +101,13 @@ export function updateOrderItems(data) {
     data: data // 这里的 data 就是平铺后的对象
   })
 }
+
+
+// 修改订单商品明细 (平铺提交 orderId, index, deliveryId 等)
+export function addOrderItem(data) {
+  return request({
+    url: '/order/addOrderItem',
+    method: 'post',
+    data: data // 这里的 data 就是平铺后的对象
+  })
+}

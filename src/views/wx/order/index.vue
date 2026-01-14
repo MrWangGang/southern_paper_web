@@ -66,11 +66,19 @@
               <div style="display: flex; align-items: center; margin-bottom: 12px;">
                 <div class="inner-title" style="margin-bottom: 0;">商品明细</div>
                 <el-button
+                  type="success"
+                  size="mini"
+                  icon="el-icon-plus"
+                  style="margin-left: 15px;"
+                  :disabled="props.row.orderStatus === '已完成' || props.row.orderStatus === '已关闭' || props.row.orderStatus === '草稿'"
+                  @click="handleAddNewProduct(props.row)"
+                >新增商品</el-button>
+                <el-button
                   type="primary"
                   size="mini"
                   icon="el-icon-truck"
                   style="margin-left: 15px;"
-                  :disabled="!isBatchShippable(props.row._id) || props.row.orderStatus === '已关闭' || props.row.orderStatus === '草稿'"
+                  :disabled="!isBatchShippable(props.row._id) || props.row.orderStatus === '已完成' || props.row.orderStatus === '已关闭' || props.row.orderStatus === '草稿'"
                   @click="handleBatchShip(props.row)"
                 >批量发货 / 批量重发</el-button>
 
@@ -93,7 +101,7 @@
                 >批量打印</el-button>
 
                 <span v-if="hasIllegalSelection(props.row._id)" style="margin-left: 10px; color: #F56C6C; font-size: 12px;">
-                  <i class="el-icon-warning"></i> 勾选项包含“已收货”无法批量发货,但是可以批量打印
+                  <i class="el-icon-warning"></i> 勾选项包含无法批量发货状态,但可以批量打印
                 </span>
               </div>
 
@@ -116,10 +124,11 @@
                 <vxe-column title="操作" width="320" align="center" fixed="left">
                   <template #default="{ row, rowIndex }">
                     <div style="display:flex; justify-content:center; align-items:center; gap:5px">
+
                       <template v-if="['草稿', '已关闭', '已完成'].includes(props.row.orderStatus) || (row.deliveryInfo && row.deliveryInfo.deliveryStatus === '已收货')">
-                        <span style="color: #67C23A; font-size: 12px; margin-right: 5px;">
-                          <i class="el-icon-circle-close"></i> 禁止操作
-                        </span>
+        <span style="color: #67C23A; font-size: 12px; margin-right: 5px;">
+          <i class="el-icon-circle-close"></i> 禁止操作
+        </span>
                       </template>
 
                       <template v-else-if="row.deliveryInfo">
@@ -129,37 +138,42 @@
                             type="warning"
                             size="mini"
                             icon="el-icon-edit"
-                            :disabled="row.deliveryInfo.deliveryStatus !== '待发货' && isRowSelected(props.row._id, row)"
                             @click="handleEditProduct(props.row, row, rowIndex)"
                           >修改</el-button>
+
                           <el-button
                             type="primary"
                             size="mini"
                             icon="el-icon-set-up"
-                            :disabled="isRowSelected(props.row._id, row)"
                             @click="handleOpenShip(props.row, row)"
                           >发货</el-button>
+                        </template>
+
+                        <template v-else-if="row.deliveryInfo.deliveryStatus === '修改确认'">
+                          <el-button
+                            type="warning"
+                            size="mini"
+                            icon="el-icon-edit"
+                            @click="handleEditProduct(props.row, row, rowIndex)"
+                          >修改</el-button>
                         </template>
 
                         <template v-else-if="row.deliveryInfo.deliveryStatus === '已发货'">
                           <el-button
                             type="warning"
                             size="mini"
-                            :disabled="isRowSelected(props.row._id, row)"
                             icon="el-icon-setting"
                             @click="handleOpenShip(props.row, row)"
                           >重发</el-button>
                           <el-button
                             type="success"
                             size="mini"
-                            :disabled="isRowSelected(props.row._id, row)"
                             icon="el-icon-delete"
                             @click="handleCancelShip(props.row, row)"
                           >撤回</el-button>
                         </template>
-                      </template>
 
-                      <span v-else style="color: #999; margin-right: 5px;">--</span>
+                      </template>
 
                       <el-button
                         type="text"
@@ -220,7 +234,16 @@
                     <span v-else style="color: #999;">--</span>
                   </template>
                 </vxe-column>
-
+                <vxe-column title="收货时间" width="160" align="center">
+                  <template #default="{ row }">
+                    <template v-if="row.deliveryInfo && row.deliveryInfo.receiveTime">
+                        <span style="font-weight: bold; color: #606266;">
+                          {{ dayjs(row.deliveryInfo.receiveTime).format('YYYY-MM-DD HH:mm') }}
+                        </span>
+                    </template>
+                    <span v-else style="color: #999;">--</span>
+                  </template>
+                </vxe-column>
                 <vxe-column title="商品名称" width="180" align="center" field="name" />
                 <vxe-column title="克重(g)" width="100" align="center">
                   <template #default="{ row }">{{ row.base_weight > 0 ? row.base_weight : '--' }}</template>
@@ -306,16 +329,6 @@
                         <span v-else>{{ (row.deliveryInfo && row.deliveryInfo.address) || '--' }}</span>
                       </div>
                     </el-tooltip>
-                  </template>
-                </vxe-column>
-                <vxe-column title="收货时间" width="160" align="center">
-                  <template #default="{ row }">
-                    <template v-if="row.deliveryInfo && row.deliveryInfo.receiveTime">
-                        <span style="font-weight: bold; color: #606266;">
-                          {{ dayjs(row.deliveryInfo.receiveTime).format('YYYY-MM-DD HH:mm') }}
-                        </span>
-                    </template>
-                    <span v-else style="color: #999;">--</span>
                   </template>
                 </vxe-column>
               </vxe-table>
@@ -576,7 +589,12 @@
         <el-button type="primary" :disabled="!shipForm.deliveryFileImg" @click="submitShipAction">确认发货</el-button>
       </div>
     </el-dialog>
-    <el-dialog title="修改商品属性" :visible.sync="editVisible" width="550px" append-to-body>
+    <el-dialog
+      :title="editingInfo.isEdit ? '修改商品' : '新增商品'"
+      :visible.sync="editVisible"
+      width="550px"
+      append-to-body
+    >
       <div v-if="editForm">
         <el-form label-width="110px" size="small">
 
@@ -590,7 +608,7 @@
               </div>
 
               <div class="info-text">
-                <div class="p-name">{{ editForm.name }}{{ editForm.base_weight }}g</div>
+                <div class="p-name">{{ editForm.name }}<span>{{ editForm.base_weight ? editForm.base_weight + 'g' : '' }}</span></div>
                 <div class="p-spec">╮(╯▽╰)╭</div>
                 <div class="p-spec">点击可以更换商品</div>
               </div>
@@ -777,7 +795,7 @@
 <script>
 import {
   getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups, exportOrder,
-  getPrintOrderCount, getPrintDeliveryCount, countPrintOrder, countPrintDelivery,updateOrderItems
+  getPrintOrderCount, getPrintDeliveryCount, countPrintOrder, countPrintDelivery,updateOrderItems,addOrderItem
 } from "@/api/wx/order";
 import { uploadToCloud } from "@/api/wx/common";
 import QRCode from "qrcode";
@@ -824,7 +842,7 @@ export default {
       printCountLoading: false,
       editVisible: false,
       services: ['卷筒', '整卷切', '零切', '一开二', '来料加工'],
-      editingInfo: { orderId: '', itemIndex: -1 },
+      editingInfo: { orderId: '', itemIndex: -1 , isEdit:false},
       editForm: {
         isSelfPick: false,
         deliveryInfo: {
@@ -872,12 +890,63 @@ export default {
     this.getList();
   },
   methods: {
+    /** 新增商品 - 打开空弹窗 */
+    handleAddNewProduct(order) {
+      // 1. 生成符合后端格式要求的唯一 deliveryId (DEL + 32位大写UUID)
+      // 这里使用原生 crypto API，无需安装额外库
+      const uuid = window.crypto.randomUUID().replace(/-/g, '').toUpperCase();
+      const newDeliveryId = 'DEL' + uuid;
+
+      this.editingInfo = {
+        orderId: order._id,
+        isEdit: false
+      };
+
+      // 3. 初始化空表单数据 (所有业务字段置空，但结构需与修改框一致)
+      this.editForm = {
+        orderId: order._id,              // 关联当前订单ID
+        deliveryId: newDeliveryId,       // 预设新生成的ID
+        name: '请选择商品',                        // 商品名称置空
+        productImg: '',                  // 图片置空
+        qty: null,                          // 默认数量
+        unit_price: null,
+        total: '0',
+        w: null,
+        h: null,
+        weight: null,
+        base_weight: null,
+        unit_weight: null,
+        service: '卷筒',
+        isDouble: false,
+        isStandard: false,
+        isSelfPick: false,
+
+        // 4. 配送明细初始化
+        deliveryInfo: {
+          deliveryId: newDeliveryId,     // 保持内外ID一致
+          receiverName: null,    // 默认带入订单收货人
+          receiverPhone: null, // 默认带入订单电话
+          address: null,      // 默认带入订单地址
+          deliveryStatus: '待发货',          // 新增商品初始状态为“待发货”
+
+          // 以下发货相关字段初始化为 null
+          shipNo: null,
+          shipTime: null,
+          deliveryFileImg: null,
+          deliveryFileQrImg: null
+        }
+      };
+
+      // 5. 打开弹窗 (与修改操作共用同一个 editVisible 控制的对话框)
+      this.editVisible = true;
+    },
 // handleEditProduct 负责“加载”原数据
     handleEditProduct(order, item, index) {
       // 1. 记录编辑信息（这里已经存了 orderId）
       this.editingInfo = {
         orderId: order._id,
-        itemIndex: index
+        itemIndex: index,
+        isEdit: true
       };
 
       // 2. 深拷贝原始数据
@@ -888,7 +957,8 @@ export default {
         ...baseItem,
         // 【新增】显式保存订单ID在顶层，方便后续提交使用
         orderId: order._id,
-
+        name: baseItem.name,       // 确保包含名称
+        productImg: baseItem.productImg, // 【新增/确保】包含商品图片地址
         isSelfPick: baseItem.isSelfPick === true,
 
         // 配送信息初始化
@@ -1037,6 +1107,7 @@ export default {
         orderId,
         name,
         qty,
+        productImg,
         base_weight,
         unit_weight,
         service,
@@ -1049,7 +1120,7 @@ export default {
         isSelfPick,
         warehouse,
         isStandard,
-        deliveryInfo // 这是一个对象，下面我们要把它里面的字段也提出来
+        deliveryInfo
       } = this.editForm;
 
       // 2. 提取收货明细中的主键和其他关键字段
@@ -1068,43 +1139,58 @@ export default {
       try {
         this.$modal.loading("正在保存...");
 
-        // 4. 构造完全平铺的参数对象（明确传哪些）
+        // 4. 构造完全平铺的参数对象
         const params = {
-          orderId,        // 订单主键
-          deliveryId,     // 配送主键（用于后端定位数组下标）
-          name,           // 产品名称
-          qty,            // 数量
-          base_weight,    // 克重
-          unit_weight,    // 换算系数
-          service,        // 加工服务
-          unit_price,     // 单价
-          weight,         // 重量
-          total,          // 总价
-          w,              // 宽
-          h,              // 高
-          isDouble,       // 是否双面
-          isSelfPick,     // 是否自提
-          warehouse,      // 仓库
-          isStandard,     // 是否标准
-          receiverName,   // 收货人（原属于 deliveryInfo）
-          receiverPhone,  // 电话（原属于 deliveryInfo）
-          address,        // 地址（原属于 deliveryInfo）
-          deliveryStatus  // 配送状态（原属于 deliveryInfo）
+          orderId,
+          deliveryId,
+          name,
+          productImg,
+          qty,
+          base_weight,
+          unit_weight,
+          service,
+          unit_price,
+          weight,
+          total,
+          w,
+          h,
+          isDouble,
+          isSelfPick,
+          warehouse,
+          isStandard,
+          receiverName,
+          receiverPhone,
+          address,
+          deliveryStatus
         };
 
-        console.log("平铺后的最终提交参数:", params);
+        console.log(`正在执行 [${this.editingInfo.isEdit ? '修改' : '新增'}] 操作，参数:`, params);
 
-        // 5. 调用 API
-        const res = await updateOrderItems(params);
+        // 5. 【核心改动】根据 isEdit 状态分流调用完全独立的接口
+        let res;
+        if (this.editingInfo.isEdit) {
+          // 调用修改接口
+          res = await updateOrderItems(params);
+        } else {
+          // 调用新增接口 (假设你引入的 API 名称是 addOrderItem)
+          res = await addOrderItem(params);
+        }
 
         this.$modal.closeLoading();
+
+        // 6. 处理返回结果
         if (res.code === 200 || res.code === 0) {
-          this.$message.success('修改成功');
+          this.$message.success(this.editingInfo.isEdit ? '修改成功' : '新增成功');
           this.editVisible = false;
-          this.getList();
+          this.getList(); // 刷新列表
+        } else {
+          // 处理后端返回的业务错误（如状态拦截提示）
+          this.$message.error(res.msg || '操作失败');
         }
       } catch (err) {
         this.$modal.closeLoading();
+        // 捕获后端 throw new Error 抛出的异常信息
+        this.$message.error(err.message || "系统响应失败");
         console.error('提交异常:', err);
       }
     },
@@ -1128,7 +1214,12 @@ export default {
       return colors[s] || '#409EFF';
     },
     getDeliveryStatusColor(status) {
-      const colorMap = { '待发货': '#E6A23C', '已发货': '#409EFF', '已收货': '#67C23A' };
+      const colorMap = {
+        '待发货': '#E6A23C',    // 橙色
+        '修改确认': '#333333',  // 紫色 (特殊颜色)
+        '已发货': '#409EFF',    // 蓝色
+        '已收货': '#67C23A'     // 绿色
+      };
       return colorMap[status] || '#909399';
     },
     getModeLabel(item) {
@@ -1168,9 +1259,42 @@ export default {
     },
     handleUpdateStatus(row, status) {
       const tip = status === '待发货' ? '确认重新开启该订单吗？' : `确认将订单 ${row.orderNo} 状态修改为【${status}】吗？`;
-      this.$confirm(tip, "提示", { confirmButtonText: "确定", cancelButtonText: "取消", type: status === '已关闭' ? 'error' : 'warning' }).then(() => {
-        updateOrderStatus(row._id, status).then(() => { this.$message.success("操作成功"); this.getList(); });
-      }).catch(() => {});
+
+      this.$confirm(tip, "提示", {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: status === '已关闭' ? 'error' : 'warning'
+      }).then(async () => {
+        // 1. 开启加载动画
+        const loading = this.$loading({
+          lock: true,
+          text: '正在更新状态...',
+          spinner: 'el-icon-loading',
+          background: 'rgba(0, 0, 0, 0.7)'
+        });
+
+        try {
+          // 2. 调用 API 更新订单主状态
+          const res = await updateOrderStatus(row._id, status);
+
+          // 这里的 res.code 判断根据你的接口规范而定 (200 或 0)
+          if (res.code === 200 || res.code === 0) {
+            this.$message.success("状态已成功修改为：" + status);
+
+            // 3. 🌟 核心：执行刷新
+            // getList 会重新请求后端接口，获取包含最新状态和修改后商品信息的列表
+            await this.getList();
+          }
+        } catch (error) {
+          console.error("更新状态失败:", error);
+          this.$message.error("更新失败，请稍后重试");
+        } finally {
+          // 4. 关闭加载动画
+          loading.close();
+        }
+      }).catch(() => {
+        // 用户点击取消，无需操作
+      });
     },
     handleQuery() { this.queryParams.page = 1; this.getList(); },
     handleSizeChange(val) { this.queryParams.pageSize = val; this.getList(); },
