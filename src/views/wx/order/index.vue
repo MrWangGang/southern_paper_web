@@ -74,6 +74,16 @@
                   @click="handleAddNewProduct(props.row)"
                 >新增商品</el-button>
                 <el-button
+                  type="danger"
+                  size="mini"
+                  icon="el-icon-delete"
+                  style="margin-left: 10px;"
+                :disabled="!isBatchDeletable(props.row._id)"
+                @click="handleBatchDeleteDetails(props.row)"
+                >
+                批量删除
+                </el-button>
+                <el-button
                   type="primary"
                   size="mini"
                   icon="el-icon-truck"
@@ -132,7 +142,6 @@
                       </template>
 
                       <template v-else-if="row.deliveryInfo">
-
                         <template v-if="row.deliveryInfo.deliveryStatus === '待发货'">
                           <el-button
                             type="warning"
@@ -140,6 +149,13 @@
                             icon="el-icon-edit"
                             @click="handleEditProduct(props.row, row, rowIndex)"
                           >修改</el-button>
+
+                          <el-button
+                            type="danger"
+                            size="mini"
+                            icon="el-icon-delete"
+                            @click="handleDeleteDetail(props.row._id, [row.deliveryInfo.deliveryId])"
+                          >删除</el-button>
 
                           <el-button
                             type="primary"
@@ -156,6 +172,7 @@
                             icon="el-icon-edit"
                             @click="handleEditProduct(props.row, row, rowIndex)"
                           >修改</el-button>
+
                         </template>
 
                         <template v-else-if="row.deliveryInfo.deliveryStatus === '已发货'">
@@ -172,7 +189,6 @@
                             @click="handleCancelShip(props.row, row)"
                           >撤回</el-button>
                         </template>
-
                       </template>
 
                       <el-button
@@ -795,7 +811,7 @@
 <script>
 import {
   getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups, exportOrder,
-  getPrintOrderCount, getPrintDeliveryCount, countPrintOrder, countPrintDelivery,updateOrderItems,addOrderItem
+  getPrintOrderCount, getPrintDeliveryCount, countPrintOrder, countPrintDelivery,updateOrderItems,addOrderItem,deleteOrderItems
 } from "@/api/wx/order";
 import { uploadToCloud } from "@/api/wx/common";
 import QRCode from "qrcode";
@@ -862,16 +878,10 @@ export default {
         category: 'ALL'
       },
       categoryOptions: [],   // 如果你之前没定义分类列表，请取消注释
+      selectedDetails: {}
     };
   },
   computed: {
-    /** 获取分类列表 */
-    getCategoryList() {
-      getProductCategories().then(res => {
-        // 假设返回的是字符串数组 ['白卡纸', '铜版纸', ...]
-        this.categoryOptions = res.data;
-      });
-    },
     paginatedGroups() {
       const start = (this.groupCurrentPage - 1) * this.groupPageSize;
       const end = start + this.groupPageSize;
@@ -890,6 +900,72 @@ export default {
     this.getList();
   },
   methods: {
+
+    isBatchDeletable(orderId) {
+      const selections = this.selectedItems[orderId];
+
+      if (!selections || selections.length === 0) {
+        return false;
+      }
+      return selections.every(item => {
+        return item.deliveryInfo && item.deliveryInfo.deliveryStatus === '待发货';
+      });
+    },
+    // 🌟 监听勾选事件
+    handleDetailSelectionChange({ records }, orderId) {
+      // 🌟 必须存入整行记录 records，不能只存 ID
+      // 这样 isBatchDeletable 里的 item.deliveryInfo 才能被访问到
+      this.$set(this.selectedDetails, orderId, records);
+
+      // 打印调试：确认这里有数据且 deliveryStatus 是“待发货”
+      console.log('当前选中行数据:', records);
+    },
+
+      // 🌟 批量删除按钮逻辑
+// 🌟 批量删除按钮逻辑
+    handleBatchDeleteDetails(orderRow) {
+      const orderId = orderRow._id;
+
+      // 1. 使用 selectedItems (统一变量名)
+      const selections = this.selectedItems[orderId];
+
+      if (!selections || selections.length === 0) return;
+
+      // 2. 🌟 关键修改：像批量打印一样，提取 deliveryId
+      // 这里的 map 会把 [对象, 对象] 转换成 ["DEL001", "DEL002"]
+      const deliveryIds = selections.map(item => item.deliveryInfo.deliveryId);
+
+      // 3. 将 ID 数组传给删除函数
+      this.handleDeleteDetail(orderId, deliveryIds);
+    },
+
+    /**
+     * 通用删除逻辑 (支持单个和批量)
+     */
+    handleDeleteDetail(orderId, deliveryIds) {
+      this.$confirm(`确定要删除选中的 ${deliveryIds.length} 项待发货商品吗？删除后不可恢复。`, '危险操作', {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'error'
+      }).then(async () => {
+        const res = await deleteOrderItems({orderId, deliveryIds});
+        if (res.code === 200 || res.code === 0) {
+          this.$message.success('删除成功');
+          this.$set(this.selectedItems, orderId, []); // 清空选中
+          this.getList(); // 刷新列表
+        }
+      }).then(res => {
+        if (res.result.code === 0) {
+          this.$message.success('删除成功');
+          this.$set(this.selectedItems, orderId, []);
+          this.getList();
+        } else {
+          this.$message.error(res.result.msg);
+        }
+      }).catch(err => {
+        if (err !== 'cancel') console.error(err);
+      });
+    },
     /** 新增商品 - 打开空弹窗 */
     handleAddNewProduct(order) {
       // 1. 生成符合后端格式要求的唯一 deliveryId (DEL + 32位大写UUID)
@@ -934,7 +1010,7 @@ export default {
           shipTime: null,
           deliveryFileImg: null,
           deliveryFileQrImg: null
-        }
+        },
       };
 
       // 5. 打开弹窗 (与修改操作共用同一个 editVisible 控制的对话框)
@@ -1281,14 +1357,13 @@ export default {
           if (res.code === 200 || res.code === 0) {
             this.$message.success("状态已成功修改为：" + status);
 
-            // 3. 🌟 核心：执行刷新
-            // getList 会重新请求后端接口，获取包含最新状态和修改后商品信息的列表
-            await this.getList();
           }
         } catch (error) {
           console.error("更新状态失败:", error);
           this.$message.error("更新失败，请稍后重试");
         } finally {
+          await this.getList();
+
           // 4. 关闭加载动画
           loading.close();
         }

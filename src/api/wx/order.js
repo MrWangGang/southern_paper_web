@@ -111,3 +111,11 @@ export function addOrderItem(data) {
     data: data // 这里的 data 就是平铺后的对象
   })
 }
+
+export function deleteOrderItems(data) {
+  return request({
+    url: '/order/deleteOrderItems', // 根据你的 routePrefix 组合
+    method: 'post',
+    data: data
+  })
+}
