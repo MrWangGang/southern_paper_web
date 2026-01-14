@@ -826,6 +826,7 @@ import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import FileSaver from 'file-saver';
 import { listProduct,getProductCategories } from "@/api/wx/product";
+// 统一四舍五入工具
 export default {
   data() {
     return {
@@ -1127,7 +1128,13 @@ export default {
       const f = this.editForm;
       if (!f) return;
 
-      // 1. 严格按照小程序 index.js 168-175行的转换逻辑
+      // 🌟 定义内部四舍五入工具，确保留 3 位或 2 位且进位准确
+      const roundTo = (num, decimal) => {
+        const p = Math.pow(10, decimal);
+        return Math.round((parseFloat(num || 0) + Number.EPSILON) * p) / p;
+      };
+
+      // 1. 获取基础数值
       const W = parseFloat(f.w || 0);
       const H = parseFloat(f.h || 0);
       const Q = parseFloat(f.qty || 0);
@@ -1138,42 +1145,41 @@ export default {
       let resW = 0;
       const s = f.service;
 
-      // 2. 计算逻辑（严格复刻 index.js 177-195行）
+      // 2. 计算逻辑
       if (s === '卷筒' || s === '整卷切') {
         if (f.isStandard) {
-          // 对应小程序 index.js 177行
           resW = (W * Q * X) / 1000;
         } else {
           resW = parseFloat(f.weight || 0);
         }
       }
       else if (s === '零切' || s === '一开二') {
-        // 对应小程序 index.js 185行：注意这里的括号嵌套顺序
-        // ((W/1000) * (H/1000) * (G/1000) * Q) / 1000
+        // 零切公式
         resW = ((W / 1000) * (H / 1000) * (G / 1000) * Q) / 1000;
       }
       else if (s === '来料加工') {
         if (f.isStandard) {
           resW = ((W / 1000) * (H / 1000) * (G / 1000) * Q) / 1000;
         } else {
-          // 对应小程序 index.js 189行
           resW = (W * X / 1000) * Q;
         }
       }
 
-      // 3. 赋值重量：小程序显示重量是 weightSum.toFixed(3)
+      // 3. 赋值重量：🌟 统一使用 roundTo 保留 3 位并四舍五入
       const isManualMode = (s === '卷筒' || s === '整卷切') && !f.isStandard;
       if (!isManualMode) {
-        // 小程序 updateCartStatus 里是用 toFixed(3)
-        f.weight = resW > 0 ? resW.toFixed(3) : '';
+        // 这里如果 resW 为 0，赋值为空字符串；否则强制保留 3 位
+        f.weight = resW > 0 ? roundTo(resW, 3).toFixed(3) : '';
+      } else {
+        // 手动输入的重量也要过一次 3 位格式化，确保一致性
+        if (f.weight) f.weight = roundTo(f.weight, 3).toFixed(3);
       }
 
-      // 4. 【核心点】计算总价：严格复刻 index.js 200行
-      // 注意：小程序在算 total 时，是直接用 resW (原始浮点数) * uPrice，然后再 toFixed(2)
+      // 4. 计算总价：🌟 统一使用 roundTo 保留 2 位并四舍五入
       if (resW > 0 && uPrice > 0) {
-        // 这里不要先对 resW 取三位，要直接乘，然后对乘积进行 toFixed(2)
-        let total = (resW * uPrice).toFixed(2);
-        f.total = total;
+        // 先四舍五入计算出数值，再用 toFixed(2) 补齐末尾的 0 以便显示
+        let totalVal = roundTo(resW * uPrice, 2);
+        f.total = totalVal.toFixed(2);
       } else {
         f.total = '0.00';
       }
@@ -1329,9 +1335,9 @@ export default {
 
       // 根据 type 设置仓库名称
       if (type === '1' || type === 1) {
-        this.queryParams.warehouse = '直调仓';
-      } else if (type === '2' || type === 2) {
         this.queryParams.warehouse = '湛江仓';
+      } else if (type === '2' || type === 2) {
+        this.queryParams.warehouse = '直调仓';
       }
 
       getOrderList(this.queryParams).then(res => {
