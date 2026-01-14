@@ -639,10 +639,17 @@
           </el-form-item>
 
           <el-form-item label="规格类型" v-if="['卷筒', '整卷切', '来料加工'].includes(editForm.service)">
-            <el-radio-group v-model="editForm.isStandard" @change="onSpecTypeChange">
-              <el-radio :label="true">{{ editForm.service === '来料加工' ? '张数' : '件数' }}</el-radio>
-              <el-radio :label="false">{{ editForm.service === '来料加工' ? '件数' : '吨数' }}</el-radio>
-            </el-radio-group>
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <el-radio-group v-model="editForm.isStandard" @change="onSpecTypeChange">
+                <el-radio :label="true">{{ editForm.service === '来料加工' ? '张数' : '件数' }}</el-radio>
+                <el-radio :label="false">{{ editForm.service === '来料加工' ? '件数' : '吨数' }}</el-radio>
+              </el-radio-group>
+
+              <div v-if="editForm.service === '来料加工'" style="margin-right: 124px;">
+                <span style="font-size: 14px; color: #606266; margin-right: 8px;">一开二</span>
+                <el-switch v-model="editForm.isDouble" @change="handleCalc"></el-switch>
+              </div>
+            </div>
           </el-form-item>
 
           <el-form-item label="幅宽(mm)">
@@ -668,17 +675,17 @@
             ></el-input>
           </el-form-item>
 
-          <el-form-item label="一开二" v-if="editForm.service === '来料加工'">
+<!--          <el-form-item label="一开二" v-if="editForm.service === '来料加工'">
             <el-switch v-model="editForm.isDouble" @change="handleCalc"></el-switch>
-          </el-form-item>
+          </el-form-item>-->
 
           <el-form-item label="单价(元/吨)">
             <el-input type="number" v-model="editForm.unit_price" @input="handleCalc" placeholder="请输入"></el-input>
           </el-form-item>
 
-          <div style="background: #fdf6ec; padding: 20px; border-radius: 8px; text-align: right; border: 1px solid #faecd8; margin-top: 10px;">
+          <div style="background: #fdf6ec; padding: 10px; border-radius: 8px; text-align: right; border: 1px solid #faecd8; margin-top: 10px;">
             <span style="color: #666;">金额小计：</span>
-            <span style="font-size: 26px; font-weight: bold; color: #F56C6C;">￥{{ editForm.total }}</span>
+            <span style="font-size: 20px; font-weight: bold; color: #F56C6C;">￥{{ editForm.total }}</span>
           </div>
 
           <el-divider content-position="left">配送信息</el-divider>
