@@ -103,6 +103,7 @@ export function updateOrderItems(data) {
 }
 
 
+
 // 修改订单商品明细 (平铺提交 orderId, index, deliveryId 等)
 export function addOrderItem(data) {
   return request({
@@ -117,5 +118,23 @@ export function deleteOrderItems(data) {
     url: '/order/deleteOrderItems', // 根据你的 routePrefix 组合
     method: 'post',
     data: data
+  })
+}
+
+// 领取整单接口
+export function receiveOrder(data) {
+  return request({
+    url: '/order/receiveOrder',
+    method: 'post',
+    data: data // 包含 orderId, orderNo
+  })
+}
+
+// 撤销领取整单接口
+export function cancelReceiveOrder(data) {
+  return request({
+    url: '/order/cancelReceiveOrder',
+    method: 'post',
+    data: data // 包含 orderId
   })
 }

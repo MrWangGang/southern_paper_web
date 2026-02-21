@@ -53,6 +53,22 @@
     </el-card>
 
     <el-card shadow="never" class="table-card">
+      <div class="custom-tabs-container">
+        <el-tabs v-model="activeTab" @tab-click="handleTabClick">
+          <el-tab-pane name="all">
+            <span slot="label"><i class="el-icon-receiving"></i> 订单池</span>
+          </el-tab-pane>
+          <el-tab-pane name="mine">
+            <span slot="label"><i class="el-icon-user"></i> 我领取的</span>
+          </el-tab-pane>
+
+          <el-tab-pane
+            v-if="($store.getters.roles || []).some(role => ['admin', 'manager'].includes(role))"
+            label="👥 他人领取的"
+            name="others">
+          </el-tab-pane>
+        </el-tabs>
+      </div>
       <el-table
         v-loading="loading"
         :data="orderList"
@@ -375,24 +391,90 @@
             <span v-else style="color: #999;">--</span>
           </template>
         </el-table-column>
+        <el-table-column
+          v-if="activeTab === 'others'"
+          label="领取人"
+          align="center"
+          show-overflow-tooltip
+        >
+          <template slot-scope="scope">
+            <el-tag
+              v-if="scope.row.receiverName"
+              size="small"
+              effect="dark"
+              :color="getTagColor(scope.row.receiverName)"
+              style="border: none;"
+            >
+              {{ scope.row.receiverName }}
+            </el-tag>
+            <span v-else style="color: #999;">--</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" align="center" show-overflow-tooltip>
           <template slot-scope="scope"><el-tag :type="getStatusTag(scope.row.orderStatus)" size="small">{{ scope.row.orderStatus }}</el-tag></template>
         </el-table-column>
         <el-table-column label="备注" prop="remark" align="center" min-width="150" show-overflow-tooltip>
           <template slot-scope="scope"><span>{{ scope.row.remark || '--' }}</span></template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" align="center" width="220">
+        <el-table-column label="操作" fixed="right" align="center" width="280">
           <template slot-scope="scope">
-            <el-button type="text" size="small" icon="el-icon-printer" @click="handlePrint(scope.row)">打印整单</el-button>
 
-            <el-dropdown v-if="['待发货', '已关闭'].includes(scope.row.orderStatus)" @command="(status) => handleUpdateStatus(scope.row, status)" trigger="click">
-              <el-button type="text" size="small">变更状态<i class="el-icon-arrow-down el-icon--right"></i></el-button>
-              <el-dropdown-menu slot="dropdown">
-                <el-dropdown-item v-if="scope.row.orderStatus === '待发货'" command="已关闭" style="color: #F56C6C;">作废订单</el-dropdown-item>
-                <el-dropdown-item v-else-if="scope.row.orderStatus === '已关闭'" command="待发货" style="color: #67C23A; font-weight: bold;"><i class="el-icon-refresh-left"></i> 开启订单</el-dropdown-item>
-              </el-dropdown-menu>
-            </el-dropdown>
-            <span v-else style="color: #999; font-size: 12px; margin-right: 10px;">&ensp;不可作废</span>
+            <template v-if="activeTab === 'mine' || activeTab === 'others'">
+              <el-button
+                type="text"
+                size="small"
+                icon="el-icon-printer"
+                @click="handlePrint(scope.row)"
+              >打印整单</el-button>
+
+              <div style="display: inline-block; width: 85px; text-align: center; vertical-align: middle; margin: 0 5px;">
+                <el-dropdown
+                  v-if="['待发货', '已关闭'].includes(scope.row.orderStatus)"
+                  trigger="click"
+                  @command="(status) => handleUpdateStatus(scope.row, status)"
+                >
+                  <el-button type="text" size="small">
+                    变更状态<i class="el-icon-arrow-down el-icon--right"></i>
+                  </el-button>
+                  <el-dropdown-menu slot="dropdown">
+                    <el-dropdown-item
+                      v-if="scope.row.orderStatus === '待发货'"
+                      command="已关闭"
+                      style="color: #F56C6C;"
+                    >作废订单</el-dropdown-item>
+                    <el-dropdown-item
+                      v-else-if="scope.row.orderStatus === '已关闭'"
+                      command="待发货"
+                      style="color: #67C23A; font-weight: bold;"
+                    >
+                      <i class="el-icon-refresh-left"></i> 开启订单
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </el-dropdown>
+
+                <span v-else style="color: #999; font-size: 12px;">不可作废</span>
+              </div>
+
+              <span style="color: #DCDFE6; margin-right: 8px;">|</span>
+            </template>
+
+            <el-button
+              v-if="!scope.row.receiverId"
+              type="text"
+              size="small"
+              icon="el-icon-user-solid"
+              @click="handleReceiveOrder(scope.row)"
+            >领取</el-button>
+
+            <el-button
+              v-else
+              type="text"
+              size="small"
+              icon="el-icon-refresh-left"
+              style="color: #F56C6C"
+              @click="handleCancelReceiveOrder(scope.row)"
+            >撤领</el-button>
+
           </template>
         </el-table-column>
       </el-table>
@@ -817,8 +899,22 @@
 
 <script>
 import {
-  getOrderList, updateOrderStatus, delOrder, shipItem, cancelShipItem, createShipOrder, getShipGroups, exportOrder,
-  getPrintOrderCount, getPrintDeliveryCount, countPrintOrder, countPrintDelivery,updateOrderItems,addOrderItem,deleteOrderItems
+  getOrderList,
+  updateOrderStatus,
+  delOrder,
+  shipItem,
+  cancelShipItem,
+  createShipOrder,
+  getShipGroups,
+  exportOrder,
+  getPrintOrderCount,
+  getPrintDeliveryCount,
+  countPrintOrder,
+  countPrintDelivery,
+  updateOrderItems,
+  addOrderItem,
+  deleteOrderItems,
+  receiveOrder, cancelReceiveOrder
 } from "@/api/wx/order";
 import { uploadToCloud } from "@/api/wx/common";
 import QRCode from "qrcode";
@@ -830,6 +926,7 @@ import { listProduct,getProductCategories } from "@/api/wx/product";
 export default {
   data() {
     return {
+      activeTab: 'all', // 默认选中订单池
       dayjs,
       loading: true,
       orderList: [],
@@ -837,7 +934,7 @@ export default {
       queryParams: {
         page: 1, pageSize: 10, orderNo: '', name: '', username: '', company: '', warehouse: '',
         orderStatus: ['待发货', '部分发货', '全部发货', '部分收货'],
-        startTime: '', endTime: ''
+        startTime: '', endTime: '',queryType: 'all'
       },
       dateRange: [],
       shipVisible: false,
@@ -909,6 +1006,54 @@ export default {
   },
   methods: {
 
+// 🌟 新增：Tab 切换逻辑
+    handleTabClick(tab) {
+      this.queryParams.queryType = tab.name;
+      this.queryParams.pageNum = 1; // 切换时重置为第一页
+      this.getList(); // 调用你原有的获取数据接口
+    },
+    /** 🌟 领取订单 */
+    async handleReceiveOrder(row) {
+      try {
+        await this.$confirm(`确定要领取订单 ${row.orderNo} 吗？`, '提示', {
+          type: 'primary'
+        });
+
+        const params = {
+          orderId: row._id,
+          orderNo: row.orderNo
+        };
+
+        const res = await receiveOrder(params);
+        if (res.code === 200 || res.success) {
+          this.$message.success('订单领取成功');
+          this.handleQuery(); // 重新加载列表数据
+        }
+      } catch (e) {
+        if (e !== 'cancel') console.error(e);
+      }
+    },
+
+    /** 🌟 撤销领取 */
+    async handleCancelReceiveOrder(row) {
+      try {
+        await this.$confirm('确定要撤销该订单的领取记录吗？', '警告', {
+          type: 'warning'
+        });
+
+        const params = {
+          orderId: row._id
+        };
+
+        const res = await cancelReceiveOrder(params);
+        if (res.code === 200 || res.success) {
+          this.$message.success('领取记录已撤销');
+          this.handleQuery(); // 重新加载列表数据
+        }
+      } catch (e) {
+        if (e !== 'cancel') console.error(e);
+      }
+    },
     isBatchDeletable(orderId) {
       const selections = this.selectedItems[orderId];
 
@@ -1296,6 +1441,13 @@ export default {
       const map = { '湛江仓': '#13c2c2', '直调仓': '#67C23A' };
       return map[warehouseName] || '#909399';
     },
+
+    getTagColor(warehouseName) {
+      const map = { '湛江仓': '#13c2c2', '直调仓': '#67C23A' };
+      return '#00BCD4';
+    },
+
+
     viewFile(url) { if (url) window.open(url, '_blank'); },
     formatEmpty(val) { return (val === 0 || val === '0' || !val) ? '--' : val; },
     getServiceColor(s) {
@@ -2008,6 +2160,51 @@ export default {
 
 /* 鼠标悬停表格行变手型 */
 ::v-deep .el-table__row {
+  cursor: pointer;
+}
+
+/* 自定义 Tabs 样式容器 */
+.custom-tabs-container {
+  margin-bottom: 20px;
+  background: #fff;
+  padding: 0 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
+}
+
+/* 深度修改 Element Tabs 样式 */
+::v-deep .el-tabs__nav-wrap::after {
+  height: 1px; /* 底部分割线变细 */
+  background-color: #e4e7ed;
+}
+
+::v-deep .el-tabs__item {
+  height: 54px;
+  line-height: 54px;
+  font-size: 15px;
+  color: #606266;
+  transition: all 0.3s;
+}
+
+/* 选中时的明显效果 */
+::v-deep .el-tabs__item.is-active {
+  color: #409eff;
+  font-weight: bold;
+  font-size: 16px;
+  /* 如果想要选中时背景变色，可以开启下面这段 */
+  /* background-color: rgba(64, 158, 255, 0.1); */
+}
+
+/* 选中时的底部条加粗 */
+::v-deep .el-tabs__active-bar {
+  height: 3px;
+  border-radius: 3px;
+  background-color: #409eff;
+}
+
+/* 悬停效果 */
+::v-deep .el-tabs__item:hover {
+  color: #409eff;
   cursor: pointer;
 }
 </style>
